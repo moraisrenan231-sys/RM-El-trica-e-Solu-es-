@@ -27,7 +27,7 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('O motor de PDF ainda está carregando. Aguarde alguns segundos.');
+      alert('Sistema de PDF carregando. Tente novamente em 2 segundos.');
       return;
     }
 
@@ -35,7 +35,7 @@ const ServiceNoteModal: React.FC<{
     const element = document.getElementById('receipt-pdf-template');
     
     if (!element) {
-      alert('Erro: Template não encontrado.');
+      alert('Erro ao localizar o modelo do recibo.');
       setIsGenerating(false);
       return;
     }
@@ -44,15 +44,10 @@ const ServiceNoteModal: React.FC<{
     const fileName = `RM_Recibo_${service.id.slice(-6)}_${customerName}.pdf`;
 
     const options = {
-      margin: [10, 10, 10, 10],
+      margin: 10,
       filename: fileName,
-      image: { type: 'jpeg', quality: 1 },
-      html2canvas: { 
-        scale: 3, 
-        useCORS: true, 
-        letterRendering: true,
-        logging: false
-      },
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
@@ -61,116 +56,125 @@ const ServiceNoteModal: React.FC<{
       await html2pdf().set(options).from(element).save();
     } catch (err) {
       console.error('Erro PDF:', err);
-      alert('Houve um erro ao gerar o PDF. Tente imprimir a tela.');
+      alert('Erro ao gerar PDF. Verifique sua conexão.');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleShareWhatsApp = () => {
-    if (!customer?.phone) { alert('Cliente sem telefone.'); return; }
+    if (!customer?.phone) { alert('Cliente sem telefone cadastrado.'); return; }
     const cleanPhone = customer.phone.replace(/\D/g, '');
     
-    const serviceList = service.serviceItems.map(si => {
+    const serviceItemsList = service.serviceItems.map(si => {
       const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
-      return `• ${si.quantity}x ${type?.name} (R$ ${(si.quantity * (type?.baseValue || 0)).toFixed(2)})`;
-    }).join('%0A');
+      return `• ${si.quantity}x ${type?.name || 'Serviço'} - R$ ${(si.quantity * (type?.baseValue || 0)).toFixed(2)}`;
+    }).join('\n');
 
-    const materialList = service.materials.map(sm => {
+    const materialItemsList = service.materials.map(sm => {
       const mat = allMaterials.find(m => m.id === sm.materialId);
-      return `• ${sm.quantity}x ${mat?.name} (R$ ${(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)})`;
-    }).join('%0A');
+      return `• ${sm.quantity}x ${mat?.name || 'Material'} - R$ ${(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}`;
+    }).join('\n');
 
-    const message = `*RM ELÉTRICA & SOLUÇÕES*%0A` +
-      `*RECIBO DE PRESTAÇÃO DE SERVIÇOS*%0A` +
-      `--------------------------------%0A` +
-      `*Protocolo:* #${service.id.slice(-6).toUpperCase()}%0A` +
-      `*Cliente:* ${customer.name}%0A` +
-      `*Data:* ${new Date(service.date).toLocaleDateString('pt-BR')}%0A%0A` +
-      `*SERVIÇOS REALIZADOS:*%0A${serviceList || 'Serviço técnico'}%0A%0A` +
-      `*MATERIAIS UTILIZADOS:*%0A${materialList || 'Nenhum material'}%0A%0A` +
-      `*VALOR TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%0A` +
-      `*PAGAMENTO:* ${service.paymentMethod}${service.installments && service.installments > 1 ? ` (${service.installments}x)` : ''}%0A` +
-      `--------------------------------%0A` +
-      `*Técnico:* Renan Morais%0A` +
-      `*Contato:* (14) 99179-8868%0A%0A` +
-      `_Obrigado por confiar na RM Elétrica!_`;
+    const rawMessage = `*RM ELÉTRICA & SOLUÇÕES*
+*RECIBO DE PRESTAÇÃO DE SERVIÇOS*
+--------------------------------
+*Protocolo:* #${service.id.slice(-6).toUpperCase()}
+*Cliente:* ${customer.name}
+*Data:* ${new Date(service.date).toLocaleDateString('pt-BR')}
 
-    window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
+*SERVIÇOS REALIZADOS:*
+${serviceItemsList || 'Mão de obra técnica'}
+
+*MATERIAIS UTILIZADOS:*
+${materialItemsList || 'Nenhum material adicional'}
+
+*VALOR TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+*FORMA DE PAGAMENTO:* ${service.paymentMethod}
+--------------------------------
+*Técnico:* Renan Morais
+*WhatsApp:* (14) 99179-8868
+
+_Agradecemos a confiança em nossos serviços!_`;
+
+    const encodedMessage = encodeURIComponent(rawMessage);
+    window.open(`https://wa.me/55${cleanPhone}?text=${encodedMessage}`, '_blank');
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 z-[500] flex items-center justify-center p-2 md:p-4 overflow-hidden backdrop-blur-md">
-      <div className="bg-slate-50 w-full max-w-5xl h-[95vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
+    <div className="fixed inset-0 bg-slate-900/90 z-[500] flex items-center justify-center p-2 md:p-6 backdrop-blur-sm overflow-hidden">
+      <div className="bg-white w-full max-w-5xl h-full md:h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
         
-        <div className="p-4 border-b flex flex-wrap gap-3 justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
-          <button onClick={onClose} className="text-slate-500 font-black px-6 py-2.5 hover:bg-slate-100 rounded-xl transition-all uppercase text-[10px] tracking-widest border border-slate-200">
-            ✕ FECHAR
-          </button>
+        {/* Barra de Ações Superior */}
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold text-xs uppercase hover:bg-slate-200 rounded-lg transition-all">✕ Fechar</button>
           <div className="flex gap-2">
-            <button onClick={handleShareWhatsApp} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase flex items-center gap-2 transition-all">
-               <span>📱</span> WHATSAPP
+            <button onClick={handleShareWhatsApp} className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg flex items-center gap-2 transition-all">
+               <span>📱</span> ENVIAR WHATSAPP
             </button>
-            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase flex items-center gap-2 transition-all">
-               <span>📥</span> BAIXAR PDF
+            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg flex items-center gap-2 transition-all">
+               <span>📥</span> BAIXAR RECIBO PDF
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar bg-slate-200/40">
-          <div id="receipt-pdf-template" className="bg-white p-12 md:p-16 shadow-2xl max-w-[210mm] mx-auto min-h-[297mm] text-slate-800 flex flex-col">
+        {/* Área Visual do Recibo */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 bg-slate-100/50">
+          <div id="receipt-pdf-template" className="bg-white p-10 md:p-16 shadow-xl max-w-[210mm] mx-auto min-h-[297mm] text-slate-800 flex flex-col font-sans border border-slate-200">
             
-            <div className="flex justify-between items-start border-b-8 border-indigo-600 pb-10 mb-10">
-              <div className="space-y-1">
+            {/* Cabeçalho Profissional */}
+            <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-8 mb-8">
+              <div>
                 <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
-                <p className="text-sm font-bold text-indigo-600 uppercase tracking-[0.2em] mt-1">Serviços Elétricos e Soluções em Manutenção</p>
-                <div className="mt-8 text-xs text-slate-500 font-bold space-y-1">
-                  <p>Técnico: Renan Morais</p>
-                  <p>Telefone: (14) 99179-8868</p>
+                <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mt-2">Soluções Inteligentes em Manutenção Elétrica</p>
+                <div className="mt-6 text-[11px] text-slate-500 font-bold space-y-1 uppercase">
+                  <p>Responsável: Renan Morais</p>
+                  <p>Contato: (14) 99179-8868</p>
+                  <p>Local: Lençóis Paulista - SP</p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] inline-block mb-3 shadow-xl uppercase tracking-widest">Recibo Digital</div>
-                <p className="text-sm font-black text-slate-400">#{service.id.slice(-6).toUpperCase()}</p>
+                <div className="bg-slate-900 text-white px-4 py-2 rounded-lg font-black text-[10px] inline-block mb-2 uppercase tracking-widest">Recibo de Serviço</div>
+                <p className="text-sm font-black text-slate-400">Nº {service.id.slice(-6).toUpperCase()}</p>
                 <p className="text-xs font-bold text-slate-500 uppercase mt-1">{new Date(service.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-10 mb-10">
-              <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-sm">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Dados do Cliente</h4>
-                <p className="text-xl font-black text-slate-800 leading-tight">{customer?.name}</p>
-                <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">{customer?.address}</p>
-                <p className="text-xs text-indigo-600 font-black mt-3">WhatsApp: {customer?.phone}</p>
+            {/* Grid de Dados do Atendimento */}
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Cliente / Contratante</h4>
+                <p className="text-lg font-black text-slate-800 leading-tight">{customer?.name}</p>
+                <p className="text-xs text-slate-500 mt-1">{customer?.address}</p>
+                <p className="text-xs text-indigo-600 font-bold mt-2">Tel: {customer?.phone}</p>
               </div>
-              <div className="text-right p-8">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Financeiro</h4>
-                <p className="text-lg font-black text-slate-800 uppercase tracking-tight">{service.paymentMethod}</p>
+              <div className="text-right p-6">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informações de Pagamento</h4>
+                <p className="text-lg font-black text-slate-800 uppercase">{service.paymentMethod}</p>
                 {service.paymentMethod === PaymentMethod.CREDIT_CARD && (
-                  <p className="text-xs font-bold text-indigo-500 mt-1">Parcelado em {service.installments}x</p>
+                  <p className="text-xs font-bold text-indigo-500">Parcelamento: {service.installments}x</p>
                 )}
-                <div className={`mt-4 inline-block px-5 py-2 rounded-full text-[10px] font-black uppercase ${service.status === ServiceStatus.COMPLETED ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  Status: {service.status}
-                </div>
+                <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-tighter">Status: {service.status}</p>
               </div>
             </div>
 
-            <div className="mb-10">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Relato do Serviço Executado</h4>
-              <div className="p-8 bg-slate-50/50 rounded-[2.5rem] border-l-[12px] border-indigo-600 shadow-inner">
-                <p className="text-sm text-slate-700 leading-relaxed italic whitespace-pre-wrap">{service.description || "Atendimento técnico padrão."}</p>
+            {/* Descrição Técnica */}
+            <div className="mb-8">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Relato Técnico / Observações</h4>
+              <div className="p-6 bg-slate-50 rounded-2xl border-l-4 border-indigo-600">
+                <p className="text-xs text-slate-600 leading-relaxed italic whitespace-pre-wrap">{service.description || "Procedimentos técnicos realizados conforme solicitação."}</p>
               </div>
             </div>
 
-            <div className="flex-1 mb-12">
-               <div className="rounded-[2rem] border border-slate-200 overflow-hidden shadow-xl">
-                  <table className="w-full">
-                    <thead className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-widest">
+            {/* Tabela de Itens e Valores */}
+            <div className="flex-1 mb-8">
+               <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-900 text-white text-[10px] uppercase font-black">
                       <tr>
-                        <th className="px-8 py-6 text-left">Descrição do Item</th>
-                        <th className="px-8 py-6 text-center">Qtd</th>
-                        <th className="px-8 py-6 text-right">Unitário</th>
-                        <th className="px-8 py-6 text-right">Subtotal</th>
+                        <th className="px-6 py-4 text-left">Descrição do Serviço / Material</th>
+                        <th className="px-6 py-4 text-center">Qtd</th>
+                        <th className="px-6 py-4 text-right">Subtotal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -178,41 +182,39 @@ const ServiceNoteModal: React.FC<{
                         const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
                         return (
                           <tr key={idx}>
-                            <td className="px-8 py-6">
-                              <p className="font-black text-slate-800">{type?.name}</p>
-                              <p className="text-[9px] text-slate-400 uppercase font-bold">Mão de Obra</p>
+                            <td className="px-6 py-4">
+                              <p className="font-bold text-slate-800">{type?.name}</p>
+                              <p className="text-[9px] text-slate-400 uppercase font-medium">Mão de Obra Especializada</p>
                             </td>
-                            <td className="px-8 py-6 text-center font-bold text-slate-600">{si.quantity}</td>
-                            <td className="px-8 py-6 text-right text-slate-500 font-medium">R$ {type?.baseValue.toFixed(2)}</td>
-                            <td className="px-8 py-6 text-right font-black text-slate-900">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+                            <td className="px-6 py-4 text-center font-bold text-slate-600">{si.quantity}</td>
+                            <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
                       {service.materials.map((sm, idx) => {
                         const mat = allMaterials.find(m => m.id === sm.materialId);
                         return (
-                          <tr key={idx} className="bg-slate-50/40">
-                            <td className="px-8 py-5">
-                              <p className="font-bold text-slate-700">{mat?.name}</p>
-                              <p className="text-[9px] text-slate-400 uppercase font-bold">Material</p>
+                          <tr key={idx} className="bg-slate-50/30">
+                            <td className="px-6 py-4">
+                              <p className="font-medium text-slate-700">{mat?.name}</p>
+                              <p className="text-[9px] text-slate-400 uppercase font-medium">Insumo Utilizado</p>
                             </td>
-                            <td className="px-8 py-5 text-center font-bold text-slate-400">{sm.quantity}</td>
-                            <td className="px-8 py-5 text-right text-slate-400">R$ {mat?.sellingPrice.toFixed(2)}</td>
-                            <td className="px-8 py-5 text-right font-bold text-slate-800">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
+                            <td className="px-6 py-4 text-center text-slate-500 font-bold">{sm.quantity}</td>
+                            <td className="px-6 py-4 text-right text-slate-700 font-bold">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot className="bg-slate-900 text-white">
                       {service.discount > 0 && (
-                        <tr className="bg-rose-600/90">
-                          <td colSpan={3} className="px-8 py-4 text-right text-[10px] font-black uppercase tracking-widest">Desconto Aplicado</td>
-                          <td className="px-8 py-4 text-right font-black">- R$ {service.discount.toFixed(2)}</td>
+                        <tr className="bg-rose-600">
+                          <td colSpan={2} className="px-6 py-2 text-right text-[10px] font-bold uppercase">Desconto Especial</td>
+                          <td className="px-6 py-2 text-right font-bold">- R$ {service.discount.toFixed(2)}</td>
                         </tr>
                       )}
                       <tr>
-                        <td colSpan={3} className="px-10 py-10 text-right text-xl font-black uppercase tracking-tighter">Valor Total do Recibo</td>
-                        <td className="px-10 py-10 text-right text-4xl font-black tracking-tighter text-indigo-400">
+                        <td colSpan={2} className="px-8 py-6 text-right text-base font-black uppercase">Valor Total do Recibo</td>
+                        <td className="px-8 py-6 text-right text-2xl font-black text-indigo-400">
                           R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -221,26 +223,24 @@ const ServiceNoteModal: React.FC<{
                </div>
             </div>
 
-            <div className="mt-auto grid grid-cols-2 gap-24 px-12 pt-16 border-t-2 border-dashed border-slate-200">
+            {/* Rodapé e Assinaturas */}
+            <div className="mt-12 grid grid-cols-2 gap-20 px-10 pt-10 border-t-2 border-dashed border-slate-200">
               <div className="text-center">
-                <div className="border-b-2 border-slate-900 h-12 flex items-end justify-center pb-1">
-                   <p className="text-[10px] font-bold italic opacity-30">Renan Morais</p>
-                </div>
-                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest mt-2">RM Elétrica & Soluções</p>
+                <div className="border-b-2 border-slate-900 h-10 mb-2"></div>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Renan Morais - RM Elétrica</p>
               </div>
               <div className="text-center">
-                <div className="border-b-2 border-slate-900 h-12"></div>
-                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest mt-2">{customer?.name || 'Cliente'}</p>
+                <div className="border-b-2 border-slate-900 h-10 mb-2"></div>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{customer?.name || 'Assinatura do Cliente'}</p>
               </div>
             </div>
           </div>
         </div>
       </div>
-      
       {isGenerating && (
-        <div className="fixed inset-0 bg-indigo-900/80 z-[600] flex flex-col items-center justify-center backdrop-blur-md text-white">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-6"></div>
-          <p className="text-xl font-black uppercase tracking-[0.3em]">Gerando PDF Profissional...</p>
+        <div className="fixed inset-0 bg-indigo-900/70 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-md">
+          <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="font-black uppercase tracking-[0.3em] text-sm animate-pulse">Gerando Arquivo PDF...</p>
         </div>
       )}
     </div>
@@ -311,7 +311,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   };
 
   const handleRemove = (id: string) => {
-    if (confirm('Deseja realmente excluir permanentemente este registro de serviço?')) {
+    if (confirm('Atenção: Esta ação excluirá permanentemente o registro do serviço. Continuar?')) {
       setServices(services.filter(s => s.id !== id));
     }
   };
@@ -319,7 +319,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerId) {
-        alert("Por favor, selecione um cliente.");
+        alert("Selecione um cliente para prosseguir.");
         return;
     }
 
@@ -353,7 +353,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Atendimentos</h2>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Responsável: Renan Morais - (14) 99179-8868</p>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Renan Morais - (14) 99179-8868</p>
         </div>
         <button onClick={() => { if(isFormOpen) {setEditingId(null); setFormData(initialForm);} setIsFormOpen(!isFormOpen); }} className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-xl'} px-8 py-3 rounded-2xl font-black text-xs transition-all`}>
           {isFormOpen ? 'CANCELAR' : '➕ NOVO REGISTRO'}
