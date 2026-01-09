@@ -8,7 +8,7 @@ export interface Customer {
   city?: string;
   neighborhood?: string;
   street?: string;
-  address: string; // Campo legado para compatibilidade, será montado a partir dos novos campos
+  address: string;
 }
 
 export interface Material {
@@ -45,16 +45,22 @@ export interface ServiceMaterial {
   quantity: number;
 }
 
+export interface ServiceItem {
+  serviceTypeId: string;
+  quantity: number;
+}
+
 export interface ServiceRecord {
   id: string;
   customerId: string;
   description: string;
   date: string;
+  serviceItems: ServiceItem[];
   materials: ServiceMaterial[];
   paymentMethod: PaymentMethod;
   installments?: number; 
   status: ServiceStatus;
-  serviceValue: number; 
+  serviceValue: number; // Soma dos ServiceItems
   discount: number; 
   totalValue: number; 
 }

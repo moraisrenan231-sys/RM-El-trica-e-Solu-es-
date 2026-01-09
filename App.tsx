@@ -70,8 +70,8 @@ const App: React.FC = () => {
         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center md:block">
           <div>
             <div className="flex flex-col gap-1 text-left">
-              <h1 className="text-xl font-black text-indigo-700 leading-tight uppercase tracking-tighter">RM Elétrica</h1>
-              <h2 className="text-xs font-bold text-slate-400 tracking-widest uppercase">Gestão Profissional</h2>
+              <h1 className="text-lg font-black text-indigo-700 leading-tight uppercase tracking-tighter">RM Elétrica & Soluções</h1>
+              <h2 className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Gestão Profissional</h2>
             </div>
           </div>
           <div className="flex gap-2 md:hidden">
