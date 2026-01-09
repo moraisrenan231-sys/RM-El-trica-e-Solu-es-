@@ -27,15 +27,18 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('Sistema de PDF ainda carregando. Tente em 2 segundos.');
+      alert('O sistema de PDF ainda está carregando. Aguarde 3 segundos.');
       return;
     }
 
     setIsGenerating(true);
-    const element = document.getElementById('receipt-pdf-content');
     
+    // Pequeno delay para garantir que o modal está 100% renderizado na tela
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const element = document.getElementById('receipt-pdf-content');
     if (!element) {
-      alert('Erro: Modelo do recibo não encontrado.');
+      alert('Erro crítico: Conteúdo do recibo não encontrado.');
       setIsGenerating(false);
       return;
     }
@@ -44,46 +47,44 @@ const ServiceNoteModal: React.FC<{
     const fileName = `RM_Recibo_${service.id.slice(-6)}_${customerName}.pdf`;
 
     const options = {
-      margin: [0, 0, 0, 0], // Margens controladas pelo CSS interno para precisão
+      margin: 0,
       filename: fileName,
       image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { 
-        scale: 3, 
+        scale: 2, 
         useCORS: true, 
         letterRendering: true,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: 800 // Estabiliza a largura para captura
+        logging: false,
+        backgroundColor: '#FFFFFF'
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       // @ts-ignore
-      const pdfWorker = html2pdf().set(options).from(element).toPdf().output('blob');
-      const blob = await pdfWorker;
+      const pdf = html2pdf().set(options).from(element);
       
-      // Cria um link de download forçado com tipo MIME correto para evitar abrir como texto no APK
-      const blobUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      const downloadLink = document.createElement('a');
-      downloadLink.href = blobUrl;
-      downloadLink.download = fileName;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      
-      // Pequeno delay para garantir que o navegador processe o download antes de revogar a URL
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      // No mobile/APK, gerar como Blob e disparar o download via URL temporária é mais seguro
+      const blob = await pdf.toPdf().output('blob');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
     } catch (err) {
-      console.error('Erro na geração do PDF:', err);
-      alert('Erro ao processar arquivo. Tente novamente.');
+      console.error('Erro PDF:', err);
+      alert('Não foi possível salvar o PDF automaticamente. Tente tirar um print da tela.');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleShareWhatsApp = () => {
-    if (!customer?.phone) { alert('Cliente sem telefone cadastrado.'); return; }
+    if (!customer?.phone) { alert('Este cliente não possui telefone cadastrado.'); return; }
     const cleanPhone = customer.phone.replace(/\D/g, '');
     
     const serviceItemsStr = service.serviceItems.map(si => {
@@ -102,8 +103,8 @@ const ServiceNoteModal: React.FC<{
 *Cliente:* ${customer.name}
 *Data:* ${new Date(service.date).toLocaleDateString('pt-BR')}
 
-*DESCRIÇÃO:*
-${service.description || 'Atendimento técnico padrão.'}
+*RELATÓRIO:*
+${service.description || 'Atendimento técnico realizado.'}
 
 *ITENS:*
 ${serviceItemsStr}
@@ -119,52 +120,53 @@ ${materialItemsStr}
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/98 z-[500] flex items-center justify-center p-0 md:p-4 backdrop-blur-md overflow-hidden">
-      <div className="bg-white w-full max-w-5xl h-full md:h-[98vh] shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-slate-900/95 z-[500] flex items-center justify-center p-0 md:p-4 backdrop-blur-md overflow-hidden">
+      <div className="bg-white w-full max-w-5xl h-full md:h-[98vh] flex flex-col overflow-hidden">
         
-        {/* BARRA DE BOTÕES INTERATIVA */}
+        {/* CABEÇALHO DO MODAL (BOTÕES) */}
         <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-slate-50 shrink-0">
-          <button onClick={onClose} className="px-6 py-3 text-slate-600 font-black text-xs uppercase hover:bg-slate-200 rounded-2xl transition-all border border-slate-200">✕ Voltar</button>
-          <div className="flex gap-3">
-            <button onClick={handleShareWhatsApp} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 uppercase tracking-widest">
+          <button onClick={onClose} className="px-5 py-2 text-slate-500 font-black text-[10px] uppercase hover:bg-slate-200 rounded-xl transition-all">✕ Fechar</button>
+          <div className="flex gap-2">
+            <button onClick={handleShareWhatsApp} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
                📱 WhatsApp
             </button>
-            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 uppercase tracking-widest">
+            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
                📥 Baixar PDF
             </button>
           </div>
         </div>
 
-        {/* ÁREA DE VISUALIZAÇÃO DO RECIBO */}
+        {/* ÁREA DE VISUALIZAÇÃO (O QUE VIRA PDF) */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-slate-200/50 flex flex-col items-center">
-          <div id="receipt-pdf-content" className="bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-slate-900 flex flex-col font-sans relative p-[20mm]">
+          
+          <div id="receipt-pdf-content" className="bg-white w-[210mm] min-h-[297mm] text-slate-900 flex flex-col font-sans p-[20mm] shadow-2xl origin-top scale-[0.4] md:scale-100">
             
-            {/* CABEÇALHO (BASEADO NA FOTO 1) */}
-            <div className="flex justify-between items-start mb-2">
+            {/* CABEÇALHO (FOTO 1) */}
+            <div className="flex justify-between items-start mb-4">
               <div>
-                <h1 className="text-[28pt] font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
-                <p className="text-[10pt] font-bold text-indigo-600 uppercase tracking-[0.2em] mt-1">EXCELÊNCIA EM INSTALAÇÕES E MANUTENÇÕES</p>
-                <div className="mt-8 text-[9pt] text-slate-500 font-bold space-y-1 uppercase tracking-wider">
+                <h1 className="text-[26pt] font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
+                <p className="text-[10pt] font-bold text-indigo-600 uppercase tracking-[0.2em] mt-2">EXCELÊNCIA EM INSTALAÇÕES E MANUTENÇÕES</p>
+                <div className="mt-10 text-[9.5pt] text-slate-500 font-bold space-y-1 uppercase tracking-wider">
                   <p>ESPECIALISTA: RENAN MORAIS</p>
                   <p>CONTATO: (14) 99179-8868</p>
                 </div>
               </div>
-              <div className="text-right flex flex-col items-end">
-                <div className="bg-[#1e293b] text-white px-6 py-3 rounded-xl font-black text-[10pt] uppercase tracking-[0.2em] mb-4">NOTA DE SERVIÇO</div>
+              <div className="text-right">
+                <div className="bg-[#1e293b] text-white px-6 py-3 rounded-xl font-black text-[10pt] uppercase tracking-[0.2em] mb-4 inline-block">NOTA DE SERVIÇO</div>
                 <p className="text-[10pt] font-black text-slate-300"># {service.id.slice(-6).toUpperCase()}</p>
                 <p className="text-[10pt] font-black text-slate-400 mt-1">{new Date(service.date).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
 
             {/* LINHA AZUL IDENTIDADE */}
-            <div className="w-full h-[6px] bg-[#4f46e5] mb-12 mt-6"></div>
+            <div className="w-full h-[6px] bg-[#4f46e5] mb-12 mt-4"></div>
 
-            {/* BOX CLIENTE (ARREDONDADO CINZA) */}
+            {/* BOX CLIENTE (FOTO 1) */}
             <div className="mb-12">
-               <div className="p-10 bg-[#f8fafc] rounded-[2.5rem] border border-slate-100 max-w-2xl">
+               <div className="p-10 bg-[#f8fafc] rounded-[2.5rem] border border-slate-100 max-w-[140mm]">
                   <h4 className="text-[8pt] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">CLIENTE</h4>
                   <p className="text-[24pt] font-black text-slate-900 leading-none mb-4">{customer?.name}</p>
-                  <div className="text-[10.5pt] text-slate-500 font-medium space-y-1">
+                  <div className="text-[10pt] text-slate-500 font-medium space-y-1">
                     <p>{customer?.street || 'Endereço não informado'}</p>
                     <p>{customer?.neighborhood ? `${customer.neighborhood}, ` : ''}{customer?.city || ''} - {customer?.state || ''}</p>
                     <p>CEP: {customer?.cep || '00000-000'}</p>
@@ -172,29 +174,29 @@ ${materialItemsStr}
                </div>
             </div>
 
-            {/* BOX PAGAMENTO */}
+            {/* PAGAMENTO */}
             <div className="mb-12">
                 <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">PAGAMENTO</h4>
-                <p className="text-[18pt] font-black text-slate-900 uppercase">{service.paymentMethod}</p>
-                <div className="mt-4 inline-block bg-[#1e293b] text-white px-5 py-2 rounded-full text-[8pt] font-black uppercase tracking-[0.2em] shadow-sm">
+                <p className="text-[20pt] font-black text-slate-900 uppercase">{service.paymentMethod}</p>
+                <div className="mt-4 inline-block bg-[#1e293b] text-white px-5 py-2 rounded-full text-[8pt] font-black uppercase tracking-[0.2em]">
                    {service.status.toUpperCase()}
                 </div>
             </div>
 
-            {/* RELATÓRIO DE EXECUÇÃO (COM BARRA AZUL LATERAL) */}
-            <div className="mb-14">
+            {/* RELATÓRIO DE EXECUÇÃO */}
+            <div className="mb-12">
                <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">RELATÓRIO DE EXECUÇÃO</h4>
-               <div className="flex gap-5 min-h-[120px]">
-                  <div className="w-5 h-auto bg-[#4f46e5] rounded-full shrink-0"></div>
+               <div className="flex gap-5">
+                  <div className="w-[6px] h-auto bg-[#4f46e5] rounded-full shrink-0"></div>
                   <div className="bg-[#f8fafc] p-10 rounded-[2.5rem] flex-1">
-                    <p className="text-[12pt] text-slate-600 leading-relaxed italic italic font-medium">
-                      {service.description || "Procedimentos técnicos realizados conforme solicitação, garantindo a integridade e conformidade das instalações elétricas."}
+                    <p className="text-[12pt] text-slate-600 leading-relaxed italic font-medium italic">
+                      {service.description || "Infelizmente nenhuma observação detalhada foi fornecida para este atendimento técnico."}
                     </p>
                   </div>
                </div>
             </div>
 
-            {/* TABELA DE VALORES (CABEÇALHO ESCURO) */}
+            {/* TABELA DE VALORES (FOTO 1) */}
             <div className="flex-1">
                <div className="rounded-[1.5rem] overflow-hidden border border-slate-100">
                   <table className="w-full text-[10pt]">
@@ -210,12 +212,12 @@ ${materialItemsStr}
                         const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
                         return (
                           <tr key={idx}>
-                            <td className="px-10 py-7">
+                            <td className="px-10 py-8">
                               <p className="font-black text-slate-900 text-[11pt]">{type?.name}</p>
                               <p className="text-[7.5pt] text-slate-400 font-bold uppercase tracking-widest mt-1">INSTALAÇÃO E REPAROS ESPECIALIZADOS</p>
                             </td>
-                            <td className="px-10 py-7 text-center font-bold text-slate-600">{si.quantity}</td>
-                            <td className="px-10 py-7 text-right font-black text-slate-900 text-[11pt]">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+                            <td className="px-10 py-8 text-center font-bold text-slate-600">{si.quantity}</td>
+                            <td className="px-10 py-8 text-right font-black text-slate-900 text-[11pt]">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
@@ -223,11 +225,11 @@ ${materialItemsStr}
                         const mat = allMaterials.find(m => m.id === sm.materialId);
                         return (
                           <tr key={idx}>
-                            <td className="px-10 py-7 text-slate-600 font-bold">
+                            <td className="px-10 py-8 text-slate-500 font-bold">
                               {mat?.name}
                             </td>
-                            <td className="px-10 py-7 text-center font-bold text-slate-400">{sm.quantity}</td>
-                            <td className="px-10 py-7 text-right font-bold text-slate-600">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
+                            <td className="px-10 py-8 text-center font-bold text-slate-400">{sm.quantity}</td>
+                            <td className="px-10 py-8 text-right font-bold text-slate-600">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
@@ -240,8 +242,8 @@ ${materialItemsStr}
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#0f172a] text-white">
-                        <td colSpan={2} className="px-12 py-12 text-left font-black text-[20pt] uppercase tracking-tighter">INVESTIMENTO TOTAL</td>
-                        <td className="px-12 py-12 text-right text-[28pt] font-black tracking-tighter">
+                        <td colSpan={2} className="px-12 py-12 text-left font-black text-[18pt] uppercase tracking-tighter">INVESTIMENTO TOTAL</td>
+                        <td className="px-12 py-12 text-right text-[26pt] font-black tracking-tighter">
                           R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -254,14 +256,14 @@ ${materialItemsStr}
             <div className="mt-24 pt-24 border-t-2 border-dashed border-slate-200">
                <div className="grid grid-cols-1 gap-24 px-10">
                   <div className="text-center">
-                    <div className="w-full h-[2px] bg-slate-900 mb-4"></div>
+                    <div className="w-full h-[1.5pt] bg-slate-900 mb-4"></div>
                     <p className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">RESPONSÁVEL TÉCNICO</p>
-                    <p className="text-[13pt] font-black text-slate-900 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
+                    <p className="text-[12pt] font-black text-slate-900 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
                   </div>
                   <div className="text-center">
-                    <div className="w-full h-[2px] bg-slate-900 mb-4"></div>
+                    <div className="w-full h-[1.5pt] bg-slate-900 mb-4"></div>
                     <p className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">ASSINATURA DO CLIENTE</p>
-                    <p className="text-[13pt] font-black text-slate-900 uppercase">{customer?.name || '___________________________'}</p>
+                    <p className="text-[12pt] font-black text-slate-900 uppercase">{customer?.name || 'A'}</p>
                   </div>
                </div>
                
@@ -269,15 +271,16 @@ ${materialItemsStr}
                   GERADO DIGITALMENTE • OBRIGADO PELA CONFIANÇA
                </div>
             </div>
+
           </div>
         </div>
       </div>
 
-      {/* OVERLAY DE CARREGAMENTO PROFISSIONAL */}
+      {/* OVERLAY DE CARREGAMENTO */}
       {isGenerating && (
-        <div className="fixed inset-0 bg-indigo-950/95 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-xl">
-          <div className="w-20 h-20 border-[6px] border-white border-t-transparent rounded-full animate-spin mb-8 shadow-2xl"></div>
-          <p className="font-black uppercase tracking-[0.5em] text-sm animate-pulse">PROCESSANDO DOCUMENTO PDF...</p>
+        <div className="fixed inset-0 bg-[#0f172a]/95 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-xl">
+          <div className="w-20 h-20 border-[6px] border-white border-t-transparent rounded-full animate-spin mb-8"></div>
+          <p className="font-black uppercase tracking-[0.5em] text-sm animate-pulse">GERANDO ARQUIVO PDF...</p>
         </div>
       )}
     </div>
@@ -348,7 +351,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   };
 
   const handleRemove = (id: string) => {
-    if (confirm('Atenção: Esta ação excluirá permanentemente o registro do serviço. Continuar?')) {
+    if (confirm('Excluir permanentemente este registro?')) {
       setServices(services.filter(s => s.id !== id));
     }
   };
@@ -356,7 +359,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerId) {
-        alert("Selecione um cliente para prosseguir.");
+        alert("Escolha um cliente.");
         return;
     }
 
@@ -402,7 +405,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
           <div className="flex items-center gap-4">
              <div className="bg-slate-900 text-white p-4 rounded-2xl text-2xl shadow-xl">🛠️</div>
              <div>
-                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl leading-none">Gestão de Ordem de Serviço</h3>
+                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl leading-none">Nova Ordem de Serviço</h3>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">RM Elétrica & Soluções</p>
              </div>
           </div>
@@ -411,16 +414,16 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             <div className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente Solicitante</label>
               <select required className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}>
-                <option value="">Selecione um cliente...</option>
+                <option value="">Selecione...</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data da Realização</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data</label>
               <input type="date" className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status do Serviço</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
               <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})}>
                 {Object.values(ServiceStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -429,11 +432,11 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             <div className="md:col-span-3 space-y-6">
               <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100">
                 <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="bg-indigo-600 text-white p-1.5 rounded-lg">⚡</span> Adicionar Serviços (Catálogo)
+                  <span className="bg-indigo-600 text-white p-1.5 rounded-lg">⚡</span> Adicionar Serviços
                 </h4>
                 <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
                   <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempService.id} onChange={e => setTempService({...tempService, id: e.target.value})}>
-                    <option value="">Escolher do Catálogo...</option>
+                    <option value="">Escolher...</option>
                     {serviceTypes.map(t => <option key={t.id} value={t.id}>{t.name} (R$ {t.baseValue.toFixed(2)})</option>)}
                   </select>
                   <div className="flex gap-2 w-full md:w-auto">
@@ -445,7 +448,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
                   {formData.serviceItems?.map((si, i) => {
                     const t = serviceTypes.find(x => x.id === si.serviceTypeId);
                     return (
-                      <div key={i} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm animate-in zoom-in-95">
+                      <div key={i} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
                         <div className="min-w-0">
                           <p className="text-sm font-black text-slate-800 truncate">{si.quantity}x {t?.name}</p>
                           <p className="text-[9px] font-bold text-indigo-500 uppercase">R$ {(si.quantity * (t?.baseValue || 0)).toFixed(2)}</p>
@@ -459,11 +462,11 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
 
               <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200">
                 <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="bg-slate-900 text-white p-1.5 rounded-lg">📦</span> Adicionar Materiais (Estoque)
+                  <span className="bg-slate-900 text-white p-1.5 rounded-lg">📦</span> Adicionar Materiais
                 </h4>
                 <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
                   <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempMaterial.id} onChange={e => setTempMaterial({...tempMaterial, id: e.target.value})}>
-                    <option value="">Escolher do Estoque...</option>
+                    <option value="">Escolher...</option>
                     {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                   <div className="flex gap-2 w-full md:w-auto">
@@ -489,51 +492,32 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             </div>
 
             <div className="md:col-span-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Relato do Atendimento (Relatório)</label>
-              <textarea className="w-full p-6 rounded-[2rem] bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none h-32 font-medium transition-all" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva os serviços realizados e particularidades técnicas..." />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Relato do Atendimento</label>
+              <textarea className="w-full p-6 rounded-[2rem] bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none h-32 font-medium" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva os procedimentos realizados..." />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Forma de Pagamento</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pagamento</label>
               <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})}>
                 {Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             
-            {formData.paymentMethod === PaymentMethod.CREDIT_CARD && (
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelamento</label>
-                <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.installments} onChange={e => setFormData({...formData, installments: Number(e.target.value)})}>
-                  {[1,2,3,4,5,6,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
-                </select>
-              </div>
-            )}
-
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Bonificação / Desconto (R$)</label>
+              <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Desconto/Bonificação (R$)</label>
               <input type="number" step="0.01" className="w-full p-4 rounded-2xl bg-rose-50/50 border-2 border-transparent focus:border-rose-500 outline-none font-black text-rose-600 text-lg" value={formData.discount} onChange={e => setFormData({...formData, discount: Number(e.target.value)})} />
             </div>
           </div>
 
-          <div className="bg-slate-900 text-white p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden group">
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
-              <div>
-                <p className="text-[10px] opacity-40 font-black uppercase tracking-[0.4em] mb-2">Total Consolidado</p>
-                <h4 className="text-2xl font-bold flex items-center justify-center md:justify-start gap-3 italic italic">
-                   <span className="text-4xl">🧾</span> Investimento Total
-                </h4>
-              </div>
-              <div className="text-right">
-                <p className="text-6xl font-black tracking-tighter text-indigo-400">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                <p className="text-[10px] opacity-50 uppercase font-bold mt-2">Valores brutos menos bonificações</p>
-              </div>
+          <div className="bg-slate-900 text-white p-10 rounded-[3.5rem] shadow-2xl flex justify-between items-center">
+            <div>
+              <p className="text-[10px] opacity-40 font-black uppercase tracking-[0.4em] mb-2">Total Consolidado</p>
+              <h4 className="text-3xl font-black tracking-tighter text-indigo-400 italic">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
             </div>
-            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px]"></div>
+            <button type="submit" className="bg-indigo-600 text-white px-12 py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl transition-all">
+               SALVAR ATENDIMENTO
+            </button>
           </div>
-
-          <button type="submit" className="w-full bg-indigo-600 text-white p-8 rounded-[2rem] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all text-xl transform hover:-translate-y-1">
-            {editingId ? '💾 ATUALIZAR REGISTRO' : '✅ FINALIZAR E SALVAR ATENDIMENTO'}
-          </button>
         </form>
       )}
 
@@ -547,17 +531,17 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase shadow-sm ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>{s.status}</span>
               </div>
               <h4 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">{client?.name || 'Cliente Particular'}</h4>
-              <p className="text-xs text-slate-400 font-bold mb-8 italic line-clamp-2 leading-relaxed min-h-[32px]">{s.description || "Sem relato técnico registrado"}</p>
+              <p className="text-xs text-slate-400 font-bold mb-8 italic line-clamp-2 leading-relaxed min-h-[32px]">{s.description || "Sem relato registrado"}</p>
               
               <div className="flex justify-between items-end border-t border-slate-50 pt-6">
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Valor do Recibo</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Total</p>
                   <p className="text-2xl font-black text-slate-900 tracking-tighter">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-lg hover:bg-indigo-600 transition-all group-hover:scale-110" title="Ver Recibo"><span className="text-[10px] font-black uppercase">Recibo</span></button>
+                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-lg hover:bg-indigo-600 transition-all" title="Ver Recibo"><span className="text-[10px] font-black uppercase">Recibo</span></button>
                   <button onClick={() => handleEdit(s)} className="bg-slate-100 text-slate-400 p-3.5 rounded-2xl hover:bg-slate-200 transition-all" title="Editar">✎</button>
-                  <button onClick={() => handleRemove(s.id)} className="bg-rose-50 text-rose-500 p-3.5 rounded-2xl hover:bg-rose-500 hover:text-white transition-all" title="Excluir">🗑️</button>
+                  <button onClick={() => handleRemove(s.id)} className="bg-rose-50 text-rose-500 p-3.5 rounded-2xl hover:bg-rose-500 transition-all" title="Excluir">🗑️</button>
                 </div>
               </div>
             </div>
