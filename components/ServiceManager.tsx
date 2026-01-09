@@ -27,7 +27,7 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('O sistema de PDF está sendo carregado. Por favor, aguarde 3 segundos.');
+      alert('Aguarde o carregamento do sistema de arquivos...');
       return;
     }
 
@@ -35,7 +35,7 @@ const ServiceNoteModal: React.FC<{
     const element = document.getElementById('receipt-pdf-content');
     
     if (!element) {
-      alert('Erro: Conteúdo do recibo não encontrado.');
+      alert('Erro ao localizar modelo do recibo.');
       setIsGenerating(false);
       return;
     }
@@ -44,31 +44,41 @@ const ServiceNoteModal: React.FC<{
     const fileName = `RM_Recibo_${service.id.slice(-6)}_${customerName}.pdf`;
 
     const options = {
-      margin: 10,
+      margin: [10, 10, 10, 10],
       filename: fileName,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { 
-        scale: 2, 
+        scale: 3, 
         useCORS: true, 
         letterRendering: true,
-        logging: false
+        scrollX: 0,
+        scrollY: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       // @ts-ignore
-      await html2pdf().set(options).from(element).save();
+      const worker = html2pdf().set(options).from(element).toPdf().output('blob');
+      const blob = await worker;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Erro ao gerar PDF:', err);
-      alert('Não foi possível baixar o PDF diretamente. Tente tirar um print da tela ou compartilhar via WhatsApp.');
+      console.error('Erro PDF:', err);
+      alert('Erro ao gerar arquivo. Tente tirar um print da tela como alternativa.');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleShareWhatsApp = () => {
-    if (!customer?.phone) { alert('Este cliente não possui telefone cadastrado.'); return; }
+    if (!customer?.phone) { alert('Cliente sem telefone cadastrado.'); return; }
     const cleanPhone = customer.phone.replace(/\D/g, '');
     
     const serviceItemsStr = service.serviceItems.map(si => {
@@ -82,17 +92,17 @@ const ServiceNoteModal: React.FC<{
     }).join('\n');
 
     const message = `*RM ELÉTRICA & SOLUÇÕES*
-*RECIBO DE SERVIÇO*
+*NOTA DE SERVIÇO #${service.id.slice(-6).toUpperCase()}*
 --------------------------------
-*Protocolo:* #${service.id.slice(-6).toUpperCase()}
 *Cliente:* ${customer.name}
 *Data:* ${new Date(service.date).toLocaleDateString('pt-BR')}
 
-*SERVIÇOS:*
-${serviceItemsStr || 'Mão de obra técnica'}
+*DESCRIÇÃO:*
+${service.description || 'Atendimento técnico padrão.'}
 
-*MATERIAIS:*
-${materialItemsStr || 'Nenhum material'}
+*ITENS E SERVIÇOS:*
+${serviceItemsStr || 'Mão de obra técnica'}
+${materialItemsStr}
 
 *VALOR TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 *PAGAMENTO:* ${service.paymentMethod}
@@ -100,142 +110,167 @@ ${materialItemsStr || 'Nenhum material'}
 *Técnico:* Renan Morais
 *WhatsApp:* (14) 99179-8868
 
-_Agradecemos a preferência!_`;
+_Obrigado pela confiança!_`;
 
     window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 z-[500] flex items-center justify-center p-2 md:p-4 backdrop-blur-sm overflow-hidden">
-      <div className="bg-white w-full max-w-4xl h-full md:h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-slate-900/98 z-[500] flex items-center justify-center p-0 md:p-4 backdrop-blur-md overflow-hidden">
+      <div className="bg-white w-full max-w-5xl h-full md:h-[98vh] shadow-2xl flex flex-col overflow-hidden">
         
-        <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold text-xs uppercase hover:bg-slate-200 rounded-lg transition-all">✕ Fechar</button>
+        <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-slate-100/50 shrink-0">
+          <button onClick={onClose} className="px-5 py-2.5 text-slate-600 font-black text-[10px] uppercase hover:bg-slate-200 rounded-xl transition-all border border-slate-200">✕ Voltar</button>
           <div className="flex gap-2">
-            <button onClick={handleShareWhatsApp} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-2">
-               📱 WHATSAPP
+            <button onClick={handleShareWhatsApp} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
+               📱 WhatsApp
             </button>
-            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-2">
-               📥 BAIXAR PDF
+            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
+               📥 Baixar PDF
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-slate-100">
-          <div id="receipt-pdf-content" className="bg-white p-8 md:p-12 shadow-sm max-w-[210mm] mx-auto text-slate-800 flex flex-col font-sans">
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-slate-200/50 flex flex-col items-center">
+          <div id="receipt-pdf-content" className="bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-slate-900 flex flex-col font-sans relative p-[15mm] md:p-[20mm]">
             
-            <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-6 mb-8">
+            {/* CABEÇALHO - CONFORME IMAGEM 1 */}
+            <div className="flex justify-between items-start mb-2">
               <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
-                <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-1">Serviços Elétricos Profissionais</p>
-                <div className="mt-4 text-[10px] text-slate-500 font-bold space-y-0.5">
-                  <p>Técnico: Renan Morais</p>
-                  <p>Contato: (14) 99179-8868</p>
-                  <p>Lençóis Paulista - SP</p>
+                <h1 className="text-[28pt] font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
+                <p className="text-[10pt] font-bold text-indigo-600 uppercase tracking-widest mt-1">EXCELÊNCIA EM INSTALAÇÕES E MANUTENÇÕES</p>
+                <div className="mt-6 text-[9pt] text-slate-500 font-bold space-y-1">
+                  <p className="uppercase tracking-widest">Especialista: Ricardo M.</p>
+                  <p>CONTATO: (00) 99999-9999</p>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="bg-slate-900 text-white px-3 py-1.5 rounded-md font-black text-[9px] inline-block mb-1 uppercase">Recibo Oficial</div>
-                <p className="text-xs font-black text-slate-400">#{service.id.slice(-6).toUpperCase()}</p>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">{new Date(service.date).toLocaleDateString('pt-BR')}</p>
+              <div className="text-right flex flex-col items-end">
+                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10pt] uppercase tracking-widest mb-4">NOTA DE SERVIÇO</div>
+                <p className="text-[10pt] font-black text-slate-300"># {service.id.slice(-6).toUpperCase()}</p>
+                <p className="text-[10pt] font-black text-slate-400 mt-1">{new Date(service.date).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <h4 className="text-[9px] font-black text-slate-400 uppercase mb-1">Cliente</h4>
-                <p className="text-sm font-black text-slate-800">{customer?.name}</p>
-                <p className="text-[10px] text-slate-500">{customer?.address}</p>
-                <p className="text-[10px] text-indigo-600 font-bold mt-1">{customer?.phone}</p>
-              </div>
-              <div className="text-right p-4">
-                <h4 className="text-[9px] font-black text-slate-400 uppercase mb-1">Pagamento</h4>
-                <p className="text-sm font-black text-slate-800 uppercase">{service.paymentMethod}</p>
-                {service.paymentMethod === PaymentMethod.CREDIT_CARD && (
-                  <p className="text-[10px] font-bold text-indigo-500">{service.installments} parcelas</p>
-                )}
-                <div className="mt-2 text-[9px] font-black text-slate-400 uppercase">Status: {service.status}</div>
+            {/* LINHA AZUL GROSSA */}
+            <div className="w-full h-2 bg-indigo-600 mb-12 mt-4"></div>
+
+            {/* SEÇÃO CLIENTE - BOX CINZA ARREDONDADO */}
+            <div className="mb-10">
+               <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 max-w-lg">
+                  <h4 className="text-[8pt] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4">CLIENTE</h4>
+                  <p className="text-[22pt] font-black text-slate-900 leading-none mb-4">{customer?.name}</p>
+                  <div className="text-[10pt] text-slate-500 font-medium space-y-1">
+                    <p>{customer?.street}</p>
+                    <p>{customer?.neighborhood}, {customer?.city} - {customer?.state}</p>
+                    <p>CEP: {customer?.cep}</p>
+                  </div>
+               </div>
+            </div>
+
+            {/* PAGAMENTO E STATUS */}
+            <div className="mb-10 grid grid-cols-2">
+              <div>
+                <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">PAGAMENTO</h4>
+                <p className="text-[18pt] font-black text-slate-900 uppercase">{service.paymentMethod}</p>
+                <div className="mt-4 inline-block bg-slate-900 text-white px-4 py-2 rounded-full text-[8pt] font-black uppercase tracking-widest shadow-sm">
+                   {service.status}
+                </div>
               </div>
             </div>
 
-            <div className="mb-8">
-              <h4 className="text-[9px] font-black text-slate-400 uppercase mb-2">Relato do Atendimento</h4>
-              <div className="p-4 bg-slate-50 rounded-xl border-l-4 border-indigo-600">
-                <p className="text-[11px] text-slate-600 leading-relaxed italic whitespace-pre-wrap">{service.description || "Nenhuma observação adicional."}</p>
-              </div>
+            {/* RELATÓRIO DE EXECUÇÃO */}
+            <div className="mb-12">
+               <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">RELATÓRIO DE EXECUÇÃO</h4>
+               <div className="flex gap-4">
+                  <div className="w-4 h-auto bg-indigo-600 rounded-full shrink-0"></div>
+                  <div className="bg-slate-50 p-8 rounded-[2.5rem] flex-1">
+                    <p className="text-[11pt] text-slate-600 leading-relaxed italic italic">{service.description || "Infelizmente nenhuma observação detalhada foi fornecida."}</p>
+                  </div>
+               </div>
             </div>
 
-            <div className="flex-1 mb-8">
-              <table className="w-full text-[11px]">
-                <thead className="bg-slate-900 text-white uppercase text-[9px] font-black">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Descrição</th>
-                    <th className="px-4 py-3 text-center">Qtd</th>
-                    <th className="px-4 py-3 text-right">Valor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 border-b border-slate-200">
-                  {service.serviceItems.map((si, idx) => {
-                    const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
-                    return (
-                      <tr key={idx}>
-                        <td className="px-4 py-3">
-                          <p className="font-bold">{type?.name}</p>
-                          <p className="text-[8px] text-slate-400 uppercase">Mão de Obra</p>
-                        </td>
-                        <td className="px-4 py-3 text-center">{si.quantity}</td>
-                        <td className="px-4 py-3 text-right font-bold">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+            {/* TABELA DE ITENS - CABEÇALHO ESCURO */}
+            <div className="flex-1">
+               <div className="rounded-[1.5rem] overflow-hidden">
+                  <table className="w-full text-[10pt]">
+                    <thead className="bg-[#0f172a] text-white uppercase text-[8pt] font-black">
+                      <tr>
+                        <th className="px-8 py-5 text-left tracking-widest">DESCRIÇÃO DOS SERVIÇOS E ITENS</th>
+                        <th className="px-8 py-5 text-center tracking-widest">QTD</th>
+                        <th className="px-8 py-5 text-right tracking-widest">SUBTOTAL</th>
                       </tr>
-                    );
-                  })}
-                  {service.materials.map((sm, idx) => {
-                    const mat = allMaterials.find(m => m.id === sm.materialId);
-                    return (
-                      <tr key={idx} className="bg-slate-50/30">
-                        <td className="px-4 py-3 text-slate-600">
-                          <p className="font-medium">{mat?.name}</p>
-                          <p className="text-[8px] text-slate-400 uppercase">Material</p>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 border-b border-slate-100">
+                      {service.serviceItems.map((si, idx) => {
+                        const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
+                        return (
+                          <tr key={idx}>
+                            <td className="px-8 py-6">
+                              <p className="font-black text-slate-900 text-[11pt]">{type?.name}</p>
+                              <p className="text-[7pt] text-slate-400 font-bold uppercase tracking-widest mt-1">INSTALAÇÃO E REPAROS ESPECIALIZADOS</p>
+                            </td>
+                            <td className="px-8 py-6 text-center font-bold text-slate-600">{si.quantity}</td>
+                            <td className="px-8 py-6 text-right font-black text-slate-900 text-[11pt]">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                      {service.materials.map((sm, idx) => {
+                        const mat = allMaterials.find(m => m.id === sm.materialId);
+                        return (
+                          <tr key={idx}>
+                            <td className="px-8 py-6 text-slate-600 font-medium">
+                              {mat?.name}
+                            </td>
+                            <td className="px-8 py-6 text-center font-bold text-slate-400">{sm.quantity}</td>
+                            <td className="px-8 py-6 text-right font-bold text-slate-600">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                      {service.discount > 0 && (
+                        <tr className="bg-rose-50/50">
+                          <td colSpan={2} className="px-8 py-4 text-right text-[8pt] font-black text-rose-500 uppercase tracking-widest">BONIFICAÇÃO</td>
+                          <td className="px-8 py-4 text-right font-black text-rose-600 text-[11pt]">- R$ {service.discount.toFixed(2)}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-[#0f172a] text-white">
+                        <td colSpan={2} className="px-10 py-10 text-left font-black text-[18pt] uppercase tracking-tighter">INVESTIMENTO TOTAL</td>
+                        <td className="px-10 py-10 text-right text-[26pt] font-black tracking-tighter">
+                          R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="px-4 py-3 text-center">{sm.quantity}</td>
-                        <td className="px-4 py-3 text-right font-bold">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  {service.discount > 0 && (
-                    <tr className="text-rose-600 font-bold">
-                      <td colSpan={2} className="px-4 py-2 text-right uppercase text-[9px]">Desconto</td>
-                      <td className="px-4 py-2 text-right">- R$ {service.discount.toFixed(2)}</td>
-                    </tr>
-                  )}
-                  <tr className="bg-slate-900 text-white">
-                    <td colSpan={2} className="px-4 py-4 text-right font-black uppercase text-[10px]">Total do Recibo</td>
-                    <td className="px-4 py-4 text-right text-lg font-black">
-                      R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                    </tfoot>
+                  </table>
+               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-12 pt-8 border-t border-dashed border-slate-200">
-              <div className="text-center">
-                <div className="border-b border-slate-900 h-8 mb-2"></div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Renan Morais - RM Elétrica</p>
-              </div>
-              <div className="text-center">
-                <div className="border-b border-slate-900 h-8 mb-2"></div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{customer?.name || 'Assinatura do Cliente'}</p>
-              </div>
+            {/* PÁGINA 2 - ASSINATURAS (CONFORME IMAGEM 2) */}
+            <div className="mt-20 pt-20 border-t border-dashed border-slate-200">
+               <div className="grid grid-cols-1 gap-24 px-10">
+                  <div className="text-center">
+                    <div className="w-full h-0.5 bg-slate-900 mb-4"></div>
+                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-widest mb-1">RESPONSÁVEL TÉCNICO</p>
+                    <p className="text-[12pt] font-black text-slate-900 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-full h-0.5 bg-slate-900 mb-4"></div>
+                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-widest mb-1">ASSINATURA DO CLIENTE</p>
+                    <p className="text-[12pt] font-black text-slate-900 uppercase">{customer?.name || 'A'}</p>
+                  </div>
+               </div>
+               
+               <div className="mt-32 text-center text-[7pt] font-black text-slate-300 uppercase tracking-[0.5em] pb-10">
+                  GERADO DIGITALMENTE • OBRIGADO PELA CONFIANÇA
+               </div>
             </div>
           </div>
         </div>
       </div>
       {isGenerating && (
-        <div className="fixed inset-0 bg-indigo-900/80 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-md">
-          <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="font-black uppercase tracking-[0.2em] text-xs">Processando Recibo...</p>
+        <div className="fixed inset-0 bg-indigo-900/90 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-md">
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-6"></div>
+          <p className="font-black uppercase tracking-[0.4em] text-sm animate-pulse">GERANDO PDF PROFISSIONAL...</p>
         </div>
       )}
     </div>
@@ -314,7 +349,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerId) {
-        alert("Selecione um cliente.");
+        alert("Selecione um cliente para prosseguir.");
         return;
     }
 
@@ -348,80 +383,97 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Atendimentos</h2>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Renan Morais - (14) 99179-8868</p>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Responsável: Renan Morais - (14) 99179-8868</p>
         </div>
-        <button onClick={() => { if(isFormOpen) {setEditingId(null); setFormData(initialForm);} setIsFormOpen(!isFormOpen); }} className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-xl'} px-6 py-3 rounded-2xl font-black text-xs transition-all uppercase`}>
-          {isFormOpen ? 'Fechar' : '➕ Novo Registro'}
+        <button onClick={() => { if(isFormOpen) {setEditingId(null); setFormData(initialForm);} setIsFormOpen(!isFormOpen); }} className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-xl'} px-8 py-3 rounded-2xl font-black text-xs transition-all uppercase tracking-widest`}>
+          {isFormOpen ? 'CANCELAR' : '➕ NOVO REGISTRO'}
         </button>
       </div>
 
       {isFormOpen && (
-        <form onSubmit={handleSave} className="bg-white p-6 md:p-8 rounded-[2rem] border-2 border-indigo-100 shadow-2xl space-y-8 animate-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-3">
-             <div className="bg-slate-900 text-white p-3 rounded-xl text-xl">🛠️</div>
-             <h3 className="font-black text-slate-800 uppercase tracking-tighter">Lançamento de Serviço</h3>
+        <form onSubmit={handleSave} className="bg-white p-6 md:p-10 rounded-[3rem] border-2 border-indigo-100 shadow-2xl space-y-10 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-4">
+             <div className="bg-slate-900 text-white p-4 rounded-2xl text-2xl shadow-xl">🛠️</div>
+             <div>
+                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl leading-none">Gestão de Ordem de Serviço</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">RM Elétrica & Soluções</p>
+             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente</label>
-              <select required className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}>
-                <option value="">Selecione...</option>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente Solicitante</label>
+              <select required className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}>
+                <option value="">Selecione um cliente...</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data</label>
-              <input type="date" className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data da Realização</label>
+              <input type="date" className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
-              <select className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})}>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status do Serviço</label>
+              <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})}>
                 {Object.values(ServiceStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
-            <div className="md:col-span-3 space-y-4">
-              <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100">
-                <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-4">Adicionar Mão de Obra</h4>
-                <div className="flex flex-wrap md:flex-nowrap gap-3 mb-4">
-                  <select className="flex-1 p-3 rounded-xl border border-indigo-200 outline-none font-bold bg-white" value={tempService.id} onChange={e => setTempService({...tempService, id: e.target.value})}>
-                    <option value="">Escolher serviço...</option>
+            <div className="md:col-span-3 space-y-6">
+              <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100">
+                <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="bg-indigo-600 text-white p-1.5 rounded-lg">⚡</span> Adicionar Serviços (Catálogo)
+                </h4>
+                <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
+                  <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempService.id} onChange={e => setTempService({...tempService, id: e.target.value})}>
+                    <option value="">Escolher do Catálogo...</option>
                     {serviceTypes.map(t => <option key={t.id} value={t.id}>{t.name} (R$ {t.baseValue.toFixed(2)})</option>)}
                   </select>
-                  <input type="number" min="1" className="w-20 p-3 rounded-xl border border-indigo-200 outline-none font-bold bg-white text-center" value={tempService.qty} onChange={e => setTempService({...tempService, qty: Number(e.target.value)})} />
-                  <button type="button" onClick={addServiceItem} className="bg-slate-900 text-white px-6 rounded-xl font-black text-xs uppercase shadow-sm">Adicionar</button>
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <input type="number" min="1" className="w-24 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-black text-center bg-white shadow-sm" value={tempService.qty} onChange={e => setTempService({...tempService, qty: Number(e.target.value)})} />
+                    <button type="button" onClick={addServiceItem} className="bg-slate-900 text-white px-8 rounded-2xl font-black text-[10px] hover:bg-indigo-600 transition-all shadow-lg uppercase tracking-widest">Adicionar</button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {formData.serviceItems?.map((si, i) => {
                     const t = serviceTypes.find(x => x.id === si.serviceTypeId);
                     return (
-                      <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
-                        <span className="text-xs font-bold">{si.quantity}x {t?.name}</span>
-                        <button type="button" onClick={() => setFormData({...formData, serviceItems: formData.serviceItems?.filter((_, idx) => idx !== i)})} className="text-rose-500 font-bold px-2">✕</button>
+                      <div key={i} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm animate-in zoom-in-95">
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-800 truncate">{si.quantity}x {t?.name}</p>
+                          <p className="text-[9px] font-bold text-indigo-500 uppercase">R$ {(si.quantity * (t?.baseValue || 0)).toFixed(2)}</p>
+                        </div>
+                        <button type="button" onClick={() => setFormData({...formData, serviceItems: formData.serviceItems?.filter((_, idx) => idx !== i)})} className="bg-rose-50 text-rose-500 p-2.5 rounded-xl hover:bg-rose-500 hover:text-white transition-all">✕</button>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Adicionar Materiais</h4>
-                <div className="flex flex-wrap md:flex-nowrap gap-3 mb-4">
-                  <select className="flex-1 p-3 rounded-xl border border-slate-300 outline-none font-bold bg-white" value={tempMaterial.id} onChange={e => setTempMaterial({...tempMaterial, id: e.target.value})}>
-                    <option value="">Escolher material...</option>
+              <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200">
+                <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="bg-slate-900 text-white p-1.5 rounded-lg">📦</span> Adicionar Materiais (Estoque)
+                </h4>
+                <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
+                  <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempMaterial.id} onChange={e => setTempMaterial({...tempMaterial, id: e.target.value})}>
+                    <option value="">Escolher do Estoque...</option>
                     {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
-                  <input type="number" min="1" className="w-20 p-3 rounded-xl border border-slate-300 outline-none font-bold bg-white text-center" value={tempMaterial.qty} onChange={e => setTempMaterial({...tempMaterial, qty: Number(e.target.value)})} />
-                  <button type="button" onClick={addMaterialItem} className="bg-slate-900 text-white px-6 rounded-xl font-black text-xs uppercase shadow-sm">Adicionar</button>
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <input type="number" min="1" className="w-24 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-black text-center bg-white shadow-sm" value={tempMaterial.qty} onChange={e => setTempMaterial({...tempMaterial, qty: Number(e.target.value)})} />
+                    <button type="button" onClick={addMaterialItem} className="bg-slate-900 text-white px-8 rounded-2xl font-black text-[10px] hover:bg-indigo-600 transition-all shadow-lg uppercase tracking-widest">Adicionar</button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {formData.materials?.map((sm, i) => {
                     const m = materials.find(x => x.id === sm.materialId);
                     return (
-                      <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold">{sm.quantity}x {m?.name}</span>
-                        <button type="button" onClick={() => setFormData({...formData, materials: formData.materials?.filter((_, idx) => idx !== i)})} className="text-rose-500 font-bold px-2">✕</button>
+                      <div key={i} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-700 truncate">{sm.quantity}x {m?.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase">R$ {(sm.quantity * (m?.sellingPrice || 0)).toFixed(2)}</p>
+                        </div>
+                        <button type="button" onClick={() => setFormData({...formData, materials: formData.materials?.filter((_, idx) => idx !== i)})} className="bg-rose-50 text-rose-500 p-2.5 rounded-xl hover:bg-rose-500 hover:text-white transition-all">✕</button>
                       </div>
                     );
                   })}
@@ -430,41 +482,51 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             </div>
 
             <div className="md:col-span-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Relato do Serviço</label>
-              <textarea className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none h-24 font-medium" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva o que foi feito..." />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Relato do Atendimento (Relatório)</label>
+              <textarea className="w-full p-6 rounded-[2rem] bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none h-32 font-medium transition-all" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva os serviços realizados e particularidades técnicas..." />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pagamento</label>
-              <select className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold" value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})}>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Forma de Pagamento</label>
+              <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})}>
                 {Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             
             {formData.paymentMethod === PaymentMethod.CREDIT_CARD && (
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelas</label>
-                <select className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold" value={formData.installments} onChange={e => setFormData({...formData, installments: Number(e.target.value)})}>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelamento</label>
+                <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.installments} onChange={e => setFormData({...formData, installments: Number(e.target.value)})}>
                   {[1,2,3,4,5,6,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
                 </select>
               </div>
             )}
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Desconto (R$)</label>
-              <input type="number" step="0.01" className="w-full p-4 rounded-xl bg-rose-50/50 border border-rose-100 outline-none font-black text-rose-600" value={formData.discount} onChange={e => setFormData({...formData, discount: Number(e.target.value)})} />
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Bonificação / Desconto (R$)</label>
+              <input type="number" step="0.01" className="w-full p-4 rounded-2xl bg-rose-50/50 border-2 border-transparent focus:border-rose-500 outline-none font-black text-rose-600 text-lg" value={formData.discount} onChange={e => setFormData({...formData, discount: Number(e.target.value)})} />
             </div>
           </div>
 
-          <div className="bg-slate-900 text-white p-6 rounded-2xl flex justify-between items-center shadow-xl">
-            <div>
-              <p className="text-[10px] opacity-50 uppercase font-black tracking-widest">Valor Final</p>
-              <p className="text-3xl font-black text-indigo-400">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <div className="bg-slate-900 text-white p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden group">
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
+              <div>
+                <p className="text-[10px] opacity-40 font-black uppercase tracking-[0.4em] mb-2">Total Consolidado</p>
+                <h4 className="text-2xl font-bold flex items-center justify-center md:justify-start gap-3 italic italic">
+                   <span className="text-4xl">🧾</span> Investimento Total
+                </h4>
+              </div>
+              <div className="text-right">
+                <p className="text-6xl font-black tracking-tighter text-indigo-400">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-[10px] opacity-50 uppercase font-bold mt-2">Valores brutos menos bonificações</p>
+              </div>
             </div>
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-xl font-black uppercase tracking-widest transition-all">
-              {editingId ? 'Atualizar' : 'Salvar Registro'}
-            </button>
+            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px]"></div>
           </div>
+
+          <button type="submit" className="w-full bg-indigo-600 text-white p-8 rounded-[2rem] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all text-xl transform hover:-translate-y-1">
+            {editingId ? '💾 ATUALIZAR REGISTRO' : '✅ FINALIZAR E SALVAR ATENDIMENTO'}
+          </button>
         </form>
       )}
 
@@ -472,32 +534,32 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
         {services.slice().reverse().map(s => {
           const client = customers.find(c => c.id === s.customerId);
           return (
-            <div key={s.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl transition-all relative group">
+            <div key={s.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(s.date).toLocaleDateString('pt-BR')}</span>
-                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>{s.status}</span>
+                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase shadow-sm ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>{s.status}</span>
               </div>
-              <h4 className="text-xl font-black text-slate-800 mb-1 leading-tight">{client?.name || 'Cliente Particular'}</h4>
-              <p className="text-xs text-slate-400 font-bold mb-6 italic line-clamp-2">{s.description || "Nenhum relato técnico registrado"}</p>
+              <h4 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">{client?.name || 'Cliente Particular'}</h4>
+              <p className="text-xs text-slate-400 font-bold mb-8 italic line-clamp-2 leading-relaxed min-h-[32px]">{s.description || "Sem relato técnico registrado"}</p>
               
-              <div className="flex justify-between items-end border-t border-slate-50 pt-4">
+              <div className="flex justify-between items-end border-t border-slate-50 pt-6">
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Total</p>
-                  <p className="text-xl font-black text-slate-900 tracking-tighter">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Valor do Recibo</p>
+                  <p className="text-2xl font-black text-slate-900 tracking-tighter">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-2.5 rounded-xl shadow-lg hover:bg-indigo-600 transition-all" title="Recibo"><span className="text-[10px] font-black uppercase">Recibo</span></button>
-                  <button onClick={() => handleEdit(s)} className="bg-slate-100 text-slate-400 p-2.5 rounded-xl hover:bg-slate-200 transition-all" title="Editar">✎</button>
-                  <button onClick={() => handleRemove(s.id)} className="bg-rose-50 text-rose-500 p-2.5 rounded-xl hover:bg-rose-500 hover:text-white transition-all" title="Excluir">🗑️</button>
+                <div className="flex gap-2">
+                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-lg hover:bg-indigo-600 transition-all group-hover:scale-110" title="Ver Recibo"><span className="text-[10px] font-black uppercase">Recibo</span></button>
+                  <button onClick={() => handleEdit(s)} className="bg-slate-100 text-slate-400 p-3.5 rounded-2xl hover:bg-slate-200 transition-all" title="Editar">✎</button>
+                  <button onClick={() => handleRemove(s.id)} className="bg-rose-50 text-rose-500 p-3.5 rounded-2xl hover:bg-rose-500 hover:text-white transition-all" title="Excluir">🗑️</button>
                 </div>
               </div>
             </div>
           );
         })}
         {services.length === 0 && !isFormOpen && (
-          <div className="col-span-full py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center">
-             <div className="text-6xl mb-4 opacity-20">📋</div>
-             <p className="font-black text-slate-300 uppercase tracking-widest">Nenhum atendimento</p>
+          <div className="col-span-full py-32 text-center bg-white rounded-[3.5rem] border-4 border-dashed border-slate-100 flex flex-col items-center">
+             <div className="text-7xl mb-6 opacity-20">⚡</div>
+             <p className="font-black text-slate-300 uppercase tracking-[0.4em] text-sm">Nenhum atendimento realizado ainda</p>
           </div>
         )}
       </div>
