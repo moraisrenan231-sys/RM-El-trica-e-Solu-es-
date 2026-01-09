@@ -16,10 +16,8 @@ const ServiceNoteModal: React.FC<{
   allMaterials: Material[]; 
   onClose: () => void 
 }> = ({ service, customer, allMaterials, onClose }) => {
-  const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Travar o scroll do fundo ao abrir o modal
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -30,7 +28,7 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('Erro: Sistema de PDF ainda carregando. Tente novamente em 2 segundos.');
+      alert('Sistema de PDF carregando. Tente novamente em 2 segundos.');
       return;
     }
 
@@ -39,82 +37,29 @@ const ServiceNoteModal: React.FC<{
     
     if (!element) {
       setIsGenerating(false);
-      alert('Erro: Nota não encontrada para gerar arquivo.');
       return;
     }
 
     const customerName = (customer?.name || 'Cliente').replace(/[^a-z0-9]/gi, '_');
-    const fileName = `Nota_RM_${service.id.slice(-6)}_${customerName}.pdf`;
+    const fileName = `RM_Eletrica_Nota_${service.id.slice(-4)}_${customerName}.pdf`;
 
     const options = {
-      margin: 10,
+      margin: 5,
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true,
-        letterRendering: true,
-        backgroundColor: '#ffffff',
-        windowWidth: 800 
-      },
+      html2canvas: { scale: 3, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       // @ts-ignore
       await html2pdf().set(options).from(element).save();
-      
-      setTimeout(() => {
-        alert('✅ PDF Salvo! Verifique sua pasta de Downloads ou Documentos.');
-      }, 500);
+      setTimeout(() => alert('📄 Relatório PDF gerado com sucesso!'), 500);
     } catch (err) {
-      console.error('Erro ao gerar PDF:', err);
-      alert('Não foi possível salvar automaticamente. O sistema abrirá a opção de imprimir manualmente.');
+      console.error(err);
       window.print();
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const getNoteText = () => {
-    const paymentStr = service.paymentMethod === PaymentMethod.CREDIT_CARD && service.installments 
-      ? `${service.paymentMethod} (${service.installments}x)` 
-      : service.paymentMethod;
-
-    return `
-⚡ *RM ELÉTRICA & SOLUÇÕES* ⚡
-Nota de Serviço nº ${service.id.slice(-6)}
---------------------------
-📅 Data: ${new Date(service.date).toLocaleDateString('pt-BR')}
-👤 Cliente: ${customer?.name || 'N/A'}
-🛠️ Serviço: ${service.description}
-💳 Pagamento: ${paymentStr}
---------------------------
-💰 Total: R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-    `.trim();
-  };
-
-  const handleCopy = () => {
-    const text = getNoteText();
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleShare = async () => {
-    const text = getNoteText();
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Nota RM Elétrica - ${customer?.name}`,
-          text: text,
-        });
-      } catch (err) {
-        console.error('Erro ao compartilhar:', err);
-      }
-    } else {
-      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
     }
   };
 
@@ -123,142 +68,116 @@ Nota de Serviço nº ${service.id.slice(-6)}
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex items-center justify-center p-0 md:p-4 print:p-0 print:bg-white print:static print:block overflow-hidden">
-      {/* Overlay de Processamento */}
+    <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[300] flex items-center justify-center p-0 md:p-6 overflow-hidden">
       {isGenerating && (
-        <div className="fixed inset-0 bg-indigo-900/70 z-[210] flex flex-col items-center justify-center text-white backdrop-blur-sm">
+        <div className="fixed inset-0 bg-indigo-900/60 z-[310] flex flex-col items-center justify-center text-white backdrop-blur-md">
           <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="font-black text-xl uppercase tracking-widest">Salvando Arquivo...</p>
+          <p className="font-black uppercase tracking-widest text-lg">Processando PDF Profissional...</p>
         </div>
       )}
 
-      <div className="bg-white w-full max-w-3xl h-full md:h-auto md:rounded-[2.5rem] shadow-2xl flex flex-col max-h-screen md:max-h-[95vh] print:max-h-full print:shadow-none print:rounded-none overflow-hidden print:overflow-visible">
+      <div className="bg-white w-full max-w-4xl h-full md:h-auto md:max-h-[95vh] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         
-        {/* Modal Header */}
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center print:hidden bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 transition-colors">
-              <span className="font-black">✕</span>
-            </button>
-            <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-widest hidden sm:block">Pré-visualização da Nota</h3>
-          </div>
+        <div className="p-4 md:p-6 border-b bg-slate-50 flex justify-between items-center shrink-0">
+          <button onClick={onClose} className="p-3 bg-white border border-slate-200 hover:bg-slate-100 rounded-2xl transition-all">
+             <span className="font-black text-slate-600">Voltar</span>
+          </button>
           
-          <div className="flex gap-1.5 sm:gap-2">
-            <button 
-              onClick={handleCopy}
-              className={`p-2 sm:px-4 sm:py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${copied ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}`}
-            >
-              <span>{copied ? '✅' : '📋'}</span>
-              <span className="hidden sm:inline">{copied ? 'Copiado' : 'Texto'}</span>
-            </button>
-            
-            <button 
-              onClick={handleShare}
-              className="bg-emerald-500 text-white p-2 sm:px-4 sm:py-2 rounded-xl font-bold text-xs hover:bg-emerald-600 flex items-center gap-2 transition-all"
-            >
-              <span>🔗</span>
-              <span className="hidden sm:inline">Enviar</span>
-            </button>
-            
-            <button 
-              onClick={handleDownloadPDF}
-              disabled={isGenerating}
-              className="bg-indigo-600 text-white p-2 sm:px-4 sm:py-2 rounded-xl font-bold text-xs hover:bg-indigo-700 flex items-center gap-2 transition-all shadow-lg shadow-indigo-200 disabled:bg-slate-400"
-            >
-              <span>📥</span>
-              <span className="hidden sm:inline">Baixar PDF</span>
-            </button>
-          </div>
+          <button 
+            onClick={handleDownloadPDF}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-200 flex items-center gap-3 transition-all"
+          >
+            <span>📥</span> BAIXAR PDF FINAL
+          </button>
         </div>
 
-        {/* Printable Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 print:overflow-visible print:p-0 bg-slate-100 md:bg-white no-scrollbar">
-          <div id="printable-service-note" className="bg-white max-w-2xl mx-auto border border-slate-200 md:border-slate-100 p-6 md:p-10 rounded-2xl md:rounded-3xl print:border-none print:p-0 shadow-sm md:shadow-none">
-            <div className="flex flex-col sm:flex-row justify-between items-start border-b-4 border-indigo-600 pb-6 mb-8 gap-4">
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 bg-slate-200/50 no-scrollbar">
+          <div id="printable-service-note" className="bg-white max-w-[210mm] mx-auto p-8 md:p-16 shadow-xl border border-slate-100 rounded-sm">
+            
+            <div className="flex justify-between items-start border-b-8 border-indigo-600 pb-10 mb-10">
               <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">RM Elétrica & Soluções</h1>
-                <p className="text-sm text-indigo-600 font-bold uppercase tracking-wider">Serviços Elétricos Profissionais</p>
-                <div className="text-[11px] text-slate-400 mt-4 font-medium space-y-0.5">
-                  <p>WhatsApp: (00) 99999-9999</p>
-                  <p>CNPJ: 00.000.000/0001-00</p>
+                <h1 className="text-3xl font-black text-slate-900 leading-none mb-2">RM ELÉTRICA & SOLUÇÕES</h1>
+                <p className="text-indigo-600 font-black uppercase tracking-widest text-xs">Excelência em Instalações e Manutenções</p>
+                <div className="mt-6 text-[11px] text-slate-400 font-bold uppercase tracking-tighter space-y-1">
+                  <p>Especialista: Ricardo M.</p>
+                  <p>Contato: (00) 99999-9999</p>
                 </div>
               </div>
-              <div className="text-left sm:text-right w-full sm:w-auto">
-                <div className="bg-slate-900 text-white px-4 py-2 rounded-lg font-black text-[10px] inline-block mb-2 uppercase tracking-widest">
-                  Nota de Serviço
-                </div>
-                <p className="text-xs text-slate-400 font-bold">Nº {service.id.slice(-6)}</p>
-                <p className="text-xs text-slate-500 font-medium">Emissão: {new Date(service.date).toLocaleDateString('pt-BR')}</p>
+              <div className="text-right">
+                <div className="bg-slate-900 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase mb-2">Nota de Serviço</div>
+                <p className="text-xs text-slate-400 font-bold"># {service.id.slice(-6)}</p>
+                <p className="text-xs text-slate-500 font-bold">{new Date(service.date).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Dados do Cliente</h4>
-                <p className="font-black text-slate-800 text-lg mb-1 leading-tight">{customer?.name || 'Cliente Particular'}</p>
-                <p className="text-[11px] text-slate-500 leading-tight mb-2">{customer?.address || 'Endereço não informado'}</p>
-                <p className="text-sm text-indigo-600 font-black">{customer?.phone}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <h4 className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Cliente</h4>
+                <p className="text-xl font-black text-slate-800 leading-tight mb-1">{customer?.name || 'Particular'}</p>
+                <div className="text-[11px] text-slate-500 font-medium space-y-0.5">
+                  <p>{customer?.street}</p>
+                  <p>{customer?.neighborhood ? `${customer.neighborhood}, ` : ''}{customer?.city} - {customer?.state}</p>
+                  {customer?.cep && <p>CEP: {customer.cep}</p>}
+                </div>
               </div>
-              <div className="sm:text-right p-5 border-2 border-indigo-50 rounded-2xl flex flex-col sm:items-end justify-center">
-                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Pagamento Escolhido</h4>
-                <p className="text-base text-slate-900 font-black">
-                  {service.paymentMethod} {service.paymentMethod === PaymentMethod.CREDIT_CARD && service.installments ? `(${service.installments}x)` : ''}
-                </p>
-                <div className={`mt-3 inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase ${service.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'}`}>
+              <div className="md:text-right flex flex-col justify-center">
+                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Pagamento</h4>
+                <p className="text-lg font-black text-slate-800">{service.paymentMethod}</p>
+                {service.paymentMethod === PaymentMethod.CREDIT_CARD && (
+                  <p className="text-sm font-bold text-indigo-500">{service.installments}x Sem Juros</p>
+                )}
+                <div className={`mt-3 inline-block self-start md:self-end px-4 py-1.5 rounded-full text-[9px] font-black uppercase ${service.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'}`}>
                   {service.status}
                 </div>
               </div>
             </div>
 
-            <div className="mb-8">
-              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Relatório de Serviços Executados</h4>
-              <div className="text-sm text-slate-800 leading-relaxed bg-slate-50/50 p-6 rounded-2xl italic border-l-8 border-indigo-500 whitespace-pre-wrap min-h-[120px]">
-                {service.description}
+            <div className="mb-10">
+              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Relatório de Execução</h4>
+              <div className="bg-slate-50 p-8 rounded-[2rem] border-l-[12px] border-indigo-600 min-h-[120px]">
+                <p className="text-sm text-slate-800 leading-relaxed italic whitespace-pre-wrap">{service.description}</p>
               </div>
             </div>
 
-            <div className="mb-8 overflow-hidden rounded-2xl border border-slate-100">
-              <table className="w-full text-[11px]">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr className="text-left">
-                    <th className="px-4 py-3 text-slate-400 font-black uppercase text-[9px]">Discriminação</th>
-                    <th className="px-4 py-3 text-center text-slate-400 font-black uppercase text-[9px]">Qtd</th>
-                    <th className="px-4 py-3 text-right text-slate-400 font-black uppercase text-[9px]">Total</th>
+            <div className="mb-12 overflow-hidden rounded-3xl border border-slate-200">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-900 text-white text-[10px] font-black uppercase">
+                    <th className="px-6 py-4 text-left">Descrição dos Serviços e Itens</th>
+                    <th className="px-6 py-4 text-center">Qtd</th>
+                    <th className="px-6 py-4 text-right">Subtotal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   <tr>
-                    <td className="px-4 py-4">
-                       <p className="font-black text-slate-800">Mão de Obra Profissional</p>
-                       <p className="text-[9px] text-slate-400">Serviços elétricos especializados</p>
+                    <td className="px-6 py-5">
+                      <p className="font-black text-slate-800">Mão de Obra Técnica</p>
+                      <p className="text-[9px] text-slate-400 uppercase tracking-tighter">Instalação e reparos especializados</p>
                     </td>
-                    <td className="px-4 py-4 text-center">1</td>
-                    <td className="px-4 py-4 text-right font-black text-slate-900">R$ {service.serviceValue.toFixed(2)}</td>
+                    <td className="px-6 py-5 text-center font-bold">1</td>
+                    <td className="px-6 py-5 text-right font-black">R$ {service.serviceValue.toFixed(2)}</td>
                   </tr>
-                  {service.materials.map((sm, i) => {
+                  {service.materials.map((sm, idx) => {
                     const mat = getMaterialDetails(sm);
-                    const unitPrice = mat?.sellingPrice || 0;
                     return (
-                      <tr key={i} className="text-slate-600">
-                        <td className="px-4 py-3">
-                           <p className="font-bold text-slate-700">{mat?.name}</p>
-                        </td>
-                        <td className="px-4 py-3 text-center">{sm.quantity}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-800">R$ {(sm.quantity * unitPrice).toFixed(2)}</td>
+                      <tr key={idx} className="text-slate-600 bg-slate-50/30">
+                        <td className="px-6 py-4 font-medium">{mat?.name}</td>
+                        <td className="px-6 py-4 text-center">{sm.quantity}</td>
+                        <td className="px-6 py-4 text-right font-bold text-slate-800">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
-                <tfoot className="border-t-2 border-slate-900">
+                <tfoot>
                   {service.discount > 0 && (
-                    <tr className="bg-rose-50/50">
-                      <td colSpan={2} className="px-4 py-2 text-right text-rose-500 font-bold uppercase text-[9px]">Desconto Especial</td>
-                      <td className="px-4 py-2 text-right font-black text-rose-600">- R$ {service.discount.toFixed(2)}</td>
+                    <tr className="bg-rose-50">
+                      <td colSpan={2} className="px-6 py-3 text-right text-[10px] font-black text-rose-500 uppercase">Bonificação</td>
+                      <td className="px-6 py-3 text-right font-black text-rose-600">- R$ {service.discount.toFixed(2)}</td>
                     </tr>
                   )}
                   <tr className="bg-slate-900 text-white">
-                    <td colSpan={2} className="px-6 py-5 text-left font-black uppercase tracking-tighter text-sm">Investimento Total</td>
-                    <td className="px-6 py-5 text-right font-black text-xl">
+                    <td colSpan={2} className="px-6 py-6 text-left text-lg font-black uppercase tracking-tighter">Investimento Total</td>
+                    <td className="px-6 py-6 text-right text-2xl font-black">
                       R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -266,44 +185,25 @@ Nota de Serviço nº ${service.id.slice(-6)}
               </table>
             </div>
 
-            <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 gap-16 pt-8 border-t border-dashed border-slate-200">
+            <div className="mt-24 grid grid-cols-1 md:grid-cols-2 gap-20 pt-10 border-t border-dashed border-slate-200">
               <div className="text-center">
-                <div className="border-b-2 border-slate-200 w-full mb-3 h-10"></div>
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Responsável Técnico</p>
-                <p className="text-[10px] text-slate-800 font-bold mt-1 uppercase tracking-tighter">RM Elétrica & Soluções</p>
+                <div className="border-b-2 border-slate-900 w-full mb-3 h-10"></div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
+                <p className="text-xs font-black text-slate-800 mt-1 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
               </div>
               <div className="text-center">
-                <div className="border-b-2 border-slate-200 w-full mb-3 h-10"></div>
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Assinatura do Cliente</p>
-                <p className="text-[10px] text-slate-800 font-bold mt-1 uppercase tracking-tighter">{customer?.name || 'Cliente'}</p>
+                <div className="border-b-2 border-slate-900 w-full mb-3 h-10"></div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assinatura do Cliente</p>
+                <p className="text-xs font-black text-slate-800 mt-1 uppercase">{customer?.name || 'Cliente'}</p>
               </div>
             </div>
             
-            <div className="mt-12 text-center pb-8">
-              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Documento gerado digitalmente • Obrigado pela preferência!</p>
-            </div>
+            <p className="mt-20 text-center text-[8px] text-slate-300 font-bold uppercase tracking-[0.4em]">
+              Gerado Digitalmente • Obrigado pela confiança
+            </p>
           </div>
         </div>
       </div>
-
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #printable-service-note, #printable-service-note * { visibility: visible !important; }
-          #printable-service-note {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            background: white !important;
-          }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-      `}</style>
     </div>
   );
 };
@@ -328,7 +228,6 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
   const [formData, setFormData] = useState<Partial<ServiceRecord>>(initialFormState);
   const [currentMaterial, setCurrentMaterial] = useState({ id: '', qty: 1 });
 
-  // Obter o serviço e cliente ativos para o modal de forma segura
   const activeService = useMemo(() => 
     selectedServiceForNote ? services.find(s => s.id === selectedServiceForNote) : null
   , [selectedServiceForNote, services]);
@@ -446,8 +345,8 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Serviços</h2>
-          <p className="text-slate-500">Controle de atendimentos e orçamentos.</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Serviços e Notas</h2>
+          <p className="text-slate-500 text-sm">Registro técnico e geração de PDF profissional.</p>
         </div>
         <button 
           onClick={() => {
@@ -457,94 +356,110 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             }
             setIsFormOpen(!isFormOpen);
           }}
-          className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-lg'} px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2`}
+          className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-lg'} px-6 py-3 rounded-2xl font-black text-sm transition-all flex items-center gap-2`}
         >
           {isFormOpen ? 'Cancelar' : '🛠️ Novo Registro'}
         </button>
       </div>
 
       {isFormOpen && (
-        <form onSubmit={handleAddService} className="bg-white p-6 rounded-2xl border-2 border-indigo-100 shadow-xl space-y-6">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-indigo-600 text-xl">{editingServiceId ? '✏️' : '✨'}</span>
-            <h3 className="font-black text-slate-800 uppercase tracking-tight">
-              {editingServiceId ? 'Editando Registro' : 'Novo Registro de Serviço'}
-            </h3>
+        <form onSubmit={handleAddService} className="bg-white p-6 md:p-8 rounded-[2.5rem] border-2 border-indigo-100 shadow-2xl space-y-8 animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-3">
+             <div className="bg-indigo-100 p-3 rounded-2xl text-xl">📝</div>
+             <div>
+                <h3 className="font-black text-slate-800 uppercase tracking-tighter">Ficha de Atendimento</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Informações principais</p>
+             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
-              <select 
-                required 
-                value={formData.customerId} 
-                onChange={e => setFormData({...formData, customerId: e.target.value})}
-                className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
-              >
-                <option value="">Selecione um cliente...</option>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente Solicitante</label>
+              <select required value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 focus:border-indigo-500 font-bold transition-all outline-none">
+                <option value="">Selecione...</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
-              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 rounded-lg border border-slate-300" />
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data do Serviço</label>
+              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 focus:border-indigo-500 font-bold outline-none" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-              <select 
-                value={formData.status} 
-                onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})}
-                className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
-              >
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status Atual</label>
+              <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 focus:border-indigo-500 font-black outline-none">
                 {Object.values(ServiceStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
-            <div className="md:col-span-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Sugestão do Catálogo (Opcional)</label>
-              <select 
-                onChange={handleServiceTypeSelect}
-                className="w-full p-2 rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700"
-              >
-                <option value="">Selecione para preencher preço e descrição...</option>
+            <div className="md:col-span-3 bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100">
+              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Modelos Rápidos</label>
+              <select onChange={handleServiceTypeSelect} className="w-full p-3 rounded-xl border-2 border-indigo-100 bg-white text-sm font-black text-indigo-700 outline-none">
+                <option value="">Buscar sugestão do catálogo...</option>
                 {serviceTypes.map(t => <option key={t.id} value={t.id}>{t.name} (Ref: R$ {t.baseValue.toFixed(2)})</option>)}
               </select>
             </div>
 
             <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
-              <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-2.5 rounded-lg border border-slate-300 h-20" placeholder="O que foi executado?" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Relatório de Serviço Executado</label>
+              <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-6 rounded-3xl border-2 border-slate-100 bg-slate-50 focus:border-indigo-500 font-medium h-32 transition-all outline-none" placeholder="O que foi feito? Quais as observações técnicas?" />
+            </div>
+
+            {/* SEÇÃO DE MATERIAIS - AGORA ABAIXO DO RELATÓRIO */}
+            <div className="md:col-span-3 border-t-2 border-dashed border-slate-100 pt-8">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="bg-slate-100 p-2 rounded-lg">📦</span> Materiais Utilizados neste Atendimento
+              </h4>
+              <div className="flex flex-col md:flex-row gap-3 mb-6">
+                <select className="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold outline-none" value={currentMaterial.id} onChange={e => setCurrentMaterial({...currentMaterial, id: e.target.value})}>
+                  <option value="">Buscar material no estoque...</option>
+                  {materials.map(m => <option key={m.id} value={m.id}>{m.name} (Estoque: {m.stock} UN)</option>)}
+                </select>
+                <div className="flex gap-3">
+                   <input type="number" min="1" className="w-20 p-4 rounded-2xl border-2 border-slate-100 text-center font-black outline-none" value={currentMaterial.qty} onChange={e => setCurrentMaterial({...currentMaterial, qty: Number(e.target.value)})} />
+                   <button type="button" onClick={addMaterialToService} className="bg-slate-900 text-white px-8 rounded-2xl font-black uppercase text-xs hover:bg-slate-800 transition-all">Adicionar</button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {formData.materials?.map((sm, idx) => {
+                  const someMat = materials.find(m => m.id === sm.materialId);
+                  return (
+                    <div key={idx} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div>
+                        <span className="font-black text-slate-700 block">{someMat?.name}</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Qtd: {sm.quantity}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-black text-indigo-600">R$ {(someMat ? someMat.sellingPrice * sm.quantity : 0).toFixed(2)}</span>
+                        <button type="button" onClick={() => removeMaterialFromForm(sm.materialId)} className="text-rose-500 hover:scale-125 transition-transform">✕</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Mão de Obra (R$)</label>
-              <input type="number" step="0.01" value={formData.serviceValue} onChange={e => setFormData({...formData, serviceValue: Number(e.target.value)})} className="w-full p-2.5 rounded-lg border border-slate-300 font-bold" />
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor Mão de Obra (R$)</label>
+              <input type="number" step="0.01" value={formData.serviceValue} onChange={e => setFormData({...formData, serviceValue: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-indigo-600 outline-none" />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-rose-700 mb-1">Desconto (R$)</label>
-              <input type="number" step="0.01" value={formData.discount} onChange={e => setFormData({...formData, discount: Number(e.target.value)})} className="w-full p-2.5 rounded-lg border-2 border-rose-100 font-bold text-rose-600" />
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Desconto (R$)</label>
+              <input type="number" step="0.01" value={formData.discount} onChange={e => setFormData({...formData, discount: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 border-rose-100 bg-rose-50/30 font-black text-rose-600 outline-none" />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pagamento</label>
-                <select 
-                  value={formData.paymentMethod} 
-                  onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})} 
-                  className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
-                >
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Forma Pagto</label>
+                <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-black outline-none">
                   {Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               {formData.paymentMethod === PaymentMethod.CREDIT_CARD && (
-                <div className="w-24 animate-in slide-in-from-left duration-200">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Parcelas</label>
-                  <select 
-                    value={formData.installments} 
-                    onChange={e => setFormData({...formData, installments: Number(e.target.value)})} 
-                    className="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-bold text-indigo-600"
-                  >
+                <div className="w-24">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Parcelas</label>
+                  <select value={formData.installments} onChange={e => setFormData({...formData, installments: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 border-indigo-100 bg-white font-black text-indigo-600 outline-none">
                     {[...Array(12)].map((_, i) => (
                       <option key={i+1} value={i+1}>{i+1}x</option>
                     ))}
@@ -554,97 +469,63 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-               <span>📦</span> Materiais do Estoque
-            </h4>
-            <div className="flex gap-2 mb-4">
-              <select 
-                className="flex-1 p-2.5 rounded-lg border border-slate-300 bg-white text-sm"
-                value={currentMaterial.id}
-                onChange={e => setCurrentMaterial({...currentMaterial, id: e.target.value})}
-              >
-                <option value="">Buscar material...</option>
-                {materials.map(m => <option key={m.id} value={m.id}>{m.name} (R$ {m.sellingPrice})</option>)}
-              </select>
-              <input type="number" min="1" className="w-20 p-2.5 rounded-lg border border-slate-300" value={currentMaterial.qty} onChange={e => setCurrentMaterial({...currentMaterial, qty: Number(e.target.value)})} />
-              <button type="button" onClick={addMaterialToService} className="bg-indigo-50 text-indigo-600 px-4 rounded-lg font-bold hover:bg-indigo-100 transition-colors">Add</button>
-            </div>
-            
-            <div className="space-y-2">
-              {formData.materials?.map((sm, idx) => {
-                const someMat = materials.find(m => m.id === sm.materialId);
-                return (
-                  <div key={idx} className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <div>
-                      <span className="font-bold text-slate-700">{someMat?.name}</span>
-                      <span className="ml-2 text-slate-400">x{sm.quantity}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-black text-slate-900">R$ {(someMat ? someMat.sellingPrice * sm.quantity : 0).toFixed(2)}</span>
-                      <button type="button" onClick={() => removeMaterialFromForm(sm.materialId)} className="text-rose-500 font-bold p-1">✕</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg border-4 border-indigo-500/30">
-            <div className="flex justify-between items-center">
+          <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+            <div className="relative z-10 flex justify-between items-center">
               <div>
-                 <p className="text-[10px] opacity-60 uppercase font-black tracking-widest">Resumo Financeiro</p>
-                 <p className="text-xs text-indigo-300">Mão de obra + Materiais - Desconto</p>
+                 <p className="text-[10px] opacity-50 uppercase font-black tracking-[0.2em] mb-1">Total da Nota</p>
+                 <p className="text-xs text-indigo-400 font-bold">Mão de obra + Materiais</p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black text-white">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-4xl font-black tracking-tighter">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               </div>
             </div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-500/30 transition-all"></div>
           </div>
 
-          <button type="submit" className="w-full bg-indigo-600 text-white p-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl transition-all">
-            {editingServiceId ? 'Salvar Alterações' : 'Concluir Registro'}
+          <button type="submit" className="w-full bg-indigo-600 text-white p-6 rounded-3xl font-black uppercase tracking-widest hover:bg-indigo-700 shadow-2xl shadow-indigo-100 transition-all text-lg">
+            {editingServiceId ? '💾 Atualizar Nota' : '✅ Gerar e Salvar Nota'}
           </button>
         </form>
       )}
 
       <div className="space-y-4">
         {services.slice().reverse().map(s => (
-          <div key={s.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 hover:border-indigo-200 transition-all">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{s.date}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+          <div key={s.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 hover:border-indigo-400 hover:shadow-xl transition-all group">
+            <div className="flex-1 w-full text-left">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.date}</span>
+                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                   {s.status}
                 </span>
               </div>
-              <h4 className="text-lg font-black text-slate-800">{customers.find(c => c.id === s.customerId)?.name || 'Cliente Particular'}</h4>
-              <p className="text-sm text-slate-500 line-clamp-1 italic">{s.description}</p>
+              <h4 className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">{customers.find(c => c.id === s.customerId)?.name || 'Cliente Particular'}</h4>
+              <p className="text-sm text-slate-500 line-clamp-1 italic font-medium">{s.description}</p>
               
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button 
-                  onClick={() => setSelectedServiceForNote(s.id)} 
-                  className="text-[10px] bg-indigo-50 text-indigo-600 font-black px-4 py-2.5 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2"
-                >
-                  📄 VER NOTA / PDF
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={() => setSelectedServiceForNote(s.id)} className="bg-slate-900 text-white font-black text-[10px] px-6 py-3 rounded-xl hover:bg-indigo-600 transition-all flex items-center gap-2 uppercase tracking-widest shadow-lg">
+                  📄 Gerar PDF Profissional
                 </button>
-                <button onClick={() => handleEditClick(s)} className="text-[10px] bg-slate-100 text-slate-600 font-black px-4 py-2.5 rounded-xl hover:bg-slate-200 transition-all">
-                  ✏️ EDITAR
+                <button onClick={() => handleEditClick(s)} className="text-[10px] bg-slate-100 text-slate-600 font-black px-6 py-3 rounded-xl hover:bg-slate-200 transition-all uppercase tracking-widest">
+                  Editar
                 </button>
               </div>
             </div>
-            <div className="text-right border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 min-w-[150px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VALOR LÍQUIDO</p>
-              <p className="text-2xl font-black text-slate-900">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-              <p className="text-[9px] text-indigo-500 font-bold uppercase mt-1">
-                {s.paymentMethod} {s.paymentMethod === PaymentMethod.CREDIT_CARD && s.installments ? `(${s.installments}x)` : ''}
+            
+            <div className="text-right border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-8 w-full md:w-auto flex flex-row md:flex-col justify-between items-center md:items-end">
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total</p>
+                <p className="text-2xl font-black text-slate-900 tracking-tighter">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <p className="text-[9px] text-indigo-600 font-black uppercase bg-indigo-50 px-3 py-1.5 rounded-lg mt-2">
+                {s.paymentMethod}
               </p>
             </div>
           </div>
         ))}
         {services.length === 0 && (
-          <div className="py-20 text-center text-slate-400 bg-white rounded-3xl border-4 border-dashed border-slate-100">
-            <p className="font-bold">Nenhum serviço registrado.</p>
+          <div className="py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-slate-100 text-slate-300">
+            <div className="text-5xl mb-4">🛠️</div>
+            <p className="font-black uppercase tracking-widest">Nenhuma nota registrada</p>
           </div>
         )}
       </div>

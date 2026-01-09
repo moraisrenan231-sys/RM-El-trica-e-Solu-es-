@@ -3,7 +3,12 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
-  address: string;
+  cep?: string;
+  state?: string;
+  city?: string;
+  neighborhood?: string;
+  street?: string;
+  address: string; // Campo legado para compatibilidade, será montado a partir dos novos campos
 }
 
 export interface Material {
@@ -47,11 +52,11 @@ export interface ServiceRecord {
   date: string;
   materials: ServiceMaterial[];
   paymentMethod: PaymentMethod;
-  installments?: number; // Added for Credit Card
+  installments?: number; 
   status: ServiceStatus;
-  serviceValue: number; // Labor cost only
-  discount: number; // Discount in R$
-  totalValue: number; // Labor + Materials - Discount
+  serviceValue: number; 
+  discount: number; 
+  totalValue: number; 
 }
 
 export interface AppState {
