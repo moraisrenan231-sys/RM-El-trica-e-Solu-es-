@@ -27,26 +27,32 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('Sistema de PDF carregando. Aguarde...');
+      alert('O motor de PDF ainda está carregando. Aguarde alguns segundos.');
       return;
     }
 
     setIsGenerating(true);
-    const element = document.getElementById('printable-receipt-content');
+    const element = document.getElementById('receipt-pdf-template');
     
     if (!element) {
+      alert('Erro: Template não encontrado.');
       setIsGenerating(false);
       return;
     }
 
     const customerName = (customer?.name || 'Cliente').replace(/[^a-z0-9]/gi, '_');
-    const fileName = `RM_Recibo_${service.id.slice(-4)}_${customerName}.pdf`;
+    const fileName = `RM_Recibo_${service.id.slice(-6)}_${customerName}.pdf`;
 
     const options = {
-      margin: 10,
+      margin: [10, 10, 10, 10],
       filename: fileName,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 3, useCORS: true, logging: false },
+      image: { type: 'jpeg', quality: 1 },
+      html2canvas: { 
+        scale: 3, 
+        useCORS: true, 
+        letterRendering: true,
+        logging: false
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
@@ -54,8 +60,8 @@ const ServiceNoteModal: React.FC<{
       // @ts-ignore
       await html2pdf().set(options).from(element).save();
     } catch (err) {
-      console.error(err);
-      alert('Erro ao gerar PDF. Verifique se a biblioteca html2pdf carregou.');
+      console.error('Erro PDF:', err);
+      alert('Houve um erro ao gerar o PDF. Tente imprimir a tela.');
     } finally {
       setIsGenerating(false);
     }
@@ -67,155 +73,176 @@ const ServiceNoteModal: React.FC<{
     
     const serviceList = service.serviceItems.map(si => {
       const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
-      return `• ${si.quantity}x ${type?.name}`;
-    }).join('\n');
+      return `• ${si.quantity}x ${type?.name} (R$ ${(si.quantity * (type?.baseValue || 0)).toFixed(2)})`;
+    }).join('%0A');
 
     const materialList = service.materials.map(sm => {
       const mat = allMaterials.find(m => m.id === sm.materialId);
-      return `• ${sm.quantity}x ${mat?.name}`;
-    }).join('\n');
+      return `• ${sm.quantity}x ${mat?.name} (R$ ${(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)})`;
+    }).join('%0A');
 
     const message = `*RM ELÉTRICA & SOLUÇÕES*%0A` +
-      `*RECIBO DE SERVIÇO*%0A` +
+      `*RECIBO DE PRESTAÇÃO DE SERVIÇOS*%0A` +
       `--------------------------------%0A` +
       `*Protocolo:* #${service.id.slice(-6).toUpperCase()}%0A` +
-      `*Cliente:* ${customer.name}%0A%0A` +
-      `*SERVIÇOS:*%0A${serviceList || 'Serviço geral'}%0A%0A` +
-      `*MATERIAIS:*%0A${materialList || 'Nenhum material'}%0A%0A` +
-      `*VALOR TOTAL:* R$ ${service.totalValue.toFixed(2)}%0A` +
-      `*PAGAMENTO:* ${service.paymentMethod}%0A` +
+      `*Cliente:* ${customer.name}%0A` +
+      `*Data:* ${new Date(service.date).toLocaleDateString('pt-BR')}%0A%0A` +
+      `*SERVIÇOS REALIZADOS:*%0A${serviceList || 'Serviço técnico'}%0A%0A` +
+      `*MATERIAIS UTILIZADOS:*%0A${materialList || 'Nenhum material'}%0A%0A` +
+      `*VALOR TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%0A` +
+      `*PAGAMENTO:* ${service.paymentMethod}${service.installments && service.installments > 1 ? ` (${service.installments}x)` : ''}%0A` +
       `--------------------------------%0A` +
       `*Técnico:* Renan Morais%0A` +
-      `*Contato:* (14) 99179-8868`;
+      `*Contato:* (14) 99179-8868%0A%0A` +
+      `_Obrigado por confiar na RM Elétrica!_`;
 
     window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 z-[300] flex items-center justify-center p-2 md:p-6 overflow-hidden backdrop-blur-sm">
-      <div className="bg-slate-50 w-full max-w-5xl h-full rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
-        <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-white shrink-0">
-          <button onClick={onClose} className="text-slate-500 font-black px-6 py-2.5 hover:bg-slate-100 rounded-xl transition-all uppercase text-[10px] tracking-widest">✕ Fechar</button>
+    <div className="fixed inset-0 bg-slate-900/95 z-[500] flex items-center justify-center p-2 md:p-4 overflow-hidden backdrop-blur-md">
+      <div className="bg-slate-50 w-full max-w-5xl h-[95vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
+        
+        <div className="p-4 border-b flex flex-wrap gap-3 justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
+          <button onClick={onClose} className="text-slate-500 font-black px-6 py-2.5 hover:bg-slate-100 rounded-xl transition-all uppercase text-[10px] tracking-widest border border-slate-200">
+            ✕ FECHAR
+          </button>
           <div className="flex gap-2">
-            <button onClick={handleShareWhatsApp} className="bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase">WhatsApp</button>
-            <button onClick={handleDownloadPDF} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase">Baixar PDF</button>
+            <button onClick={handleShareWhatsApp} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase flex items-center gap-2 transition-all">
+               <span>📱</span> WHATSAPP
+            </button>
+            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg tracking-widest uppercase flex items-center gap-2 transition-all">
+               <span>📥</span> BAIXAR PDF
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar bg-slate-200/50">
-          <div id="printable-receipt-content" className="bg-white p-12 md:p-16 shadow-2xl max-w-[210mm] mx-auto min-h-[297mm] text-slate-800">
-            <div className="flex justify-between items-start border-b-8 border-indigo-600 pb-10 mb-12">
-              <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase">RM ELÉTRICA & SOLUÇÕES</h1>
-                <p className="text-sm font-bold text-indigo-600 uppercase tracking-widest mt-1">Serviços Profissionais</p>
+        <div className="flex-1 overflow-y-auto p-4 md:p-12 no-scrollbar bg-slate-200/40">
+          <div id="receipt-pdf-template" className="bg-white p-12 md:p-16 shadow-2xl max-w-[210mm] mx-auto min-h-[297mm] text-slate-800 flex flex-col">
+            
+            <div className="flex justify-between items-start border-b-8 border-indigo-600 pb-10 mb-10">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
+                <p className="text-sm font-bold text-indigo-600 uppercase tracking-[0.2em] mt-1">Serviços Elétricos e Soluções em Manutenção</p>
                 <div className="mt-8 text-xs text-slate-500 font-bold space-y-1">
                   <p>Técnico: Renan Morais</p>
-                  <p>WhatsApp: (14) 99179-8868</p>
+                  <p>Telefone: (14) 99179-8868</p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="bg-slate-900 text-white px-5 py-3 rounded-xl font-black text-xs inline-block mb-2 shadow-lg">RECIBO DE SERVIÇO</div>
+                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] inline-block mb-3 shadow-xl uppercase tracking-widest">Recibo Digital</div>
                 <p className="text-sm font-black text-slate-400">#{service.id.slice(-6).toUpperCase()}</p>
                 <p className="text-xs font-bold text-slate-500 uppercase mt-1">{new Date(service.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-10 mb-12">
-              <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Cliente / Contratante</h4>
-                <p className="text-lg font-black text-slate-800 leading-tight">{customer?.name}</p>
-                <p className="text-xs text-slate-500 mt-1 font-medium">{customer?.address}</p>
-                <p className="text-xs text-indigo-600 font-bold mt-2">{customer?.phone}</p>
+            <div className="grid grid-cols-2 gap-10 mb-10">
+              <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-sm">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Dados do Cliente</h4>
+                <p className="text-xl font-black text-slate-800 leading-tight">{customer?.name}</p>
+                <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">{customer?.address}</p>
+                <p className="text-xs text-indigo-600 font-black mt-3">WhatsApp: {customer?.phone}</p>
               </div>
-              <div className="text-right p-6">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Condições Financeiras</h4>
-                <p className="text-lg font-black text-slate-800 uppercase">{service.paymentMethod}</p>
+              <div className="text-right p-8">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Financeiro</h4>
+                <p className="text-lg font-black text-slate-800 uppercase tracking-tight">{service.paymentMethod}</p>
                 {service.paymentMethod === PaymentMethod.CREDIT_CARD && (
-                  <p className="text-xs font-bold text-indigo-500">Parcelamento: {service.installments}x</p>
+                  <p className="text-xs font-bold text-indigo-500 mt-1">Parcelado em {service.installments}x</p>
                 )}
-                <div className={`mt-3 inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${service.status === ServiceStatus.COMPLETED ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                <div className={`mt-4 inline-block px-5 py-2 rounded-full text-[10px] font-black uppercase ${service.status === ServiceStatus.COMPLETED ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                   Status: {service.status}
                 </div>
               </div>
             </div>
 
-            <div className="mb-12">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Relato Técnico / Observações</h4>
-              <div className="p-8 bg-slate-50/50 rounded-[2rem] border-l-8 border-indigo-600">
-                <p className="text-sm text-slate-700 leading-relaxed italic whitespace-pre-wrap">{service.description || "Nenhuma observação técnica adicional registrada."}</p>
+            <div className="mb-10">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Relato do Serviço Executado</h4>
+              <div className="p-8 bg-slate-50/50 rounded-[2.5rem] border-l-[12px] border-indigo-600 shadow-inner">
+                <p className="text-sm text-slate-700 leading-relaxed italic whitespace-pre-wrap">{service.description || "Atendimento técnico padrão."}</p>
               </div>
             </div>
 
-            <div className="mb-12 rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-wider">
-                  <tr>
-                    <th className="px-6 py-5 text-left">Itens / Descrição do Serviço</th>
-                    <th className="px-6 py-5 text-center">Qtd</th>
-                    <th className="px-6 py-5 text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {service.serviceItems.map((si, idx) => {
-                    const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
-                    return (
-                      <tr key={idx}>
-                        <td className="px-6 py-6">
-                          <p className="font-black text-slate-800">{type?.name}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">Serviço Especializado</p>
-                        </td>
-                        <td className="px-6 py-6 text-center font-bold text-slate-600">{si.quantity}</td>
-                        <td className="px-6 py-6 text-right font-black text-slate-900">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+            <div className="flex-1 mb-12">
+               <div className="rounded-[2rem] border border-slate-200 overflow-hidden shadow-xl">
+                  <table className="w-full">
+                    <thead className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-widest">
+                      <tr>
+                        <th className="px-8 py-6 text-left">Descrição do Item</th>
+                        <th className="px-8 py-6 text-center">Qtd</th>
+                        <th className="px-8 py-6 text-right">Unitário</th>
+                        <th className="px-8 py-6 text-right">Subtotal</th>
                       </tr>
-                    );
-                  })}
-                  {service.materials.map((sm, idx) => {
-                    const mat = allMaterials.find(m => m.id === sm.materialId);
-                    return (
-                      <tr key={idx} className="bg-slate-50/30">
-                        <td className="px-6 py-5 text-slate-600">
-                          <span className="font-bold text-slate-700">{mat?.name}</span>
-                          <p className="text-[10px] uppercase opacity-50">Material Aplicado</p>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {service.serviceItems.map((si, idx) => {
+                        const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
+                        return (
+                          <tr key={idx}>
+                            <td className="px-8 py-6">
+                              <p className="font-black text-slate-800">{type?.name}</p>
+                              <p className="text-[9px] text-slate-400 uppercase font-bold">Mão de Obra</p>
+                            </td>
+                            <td className="px-8 py-6 text-center font-bold text-slate-600">{si.quantity}</td>
+                            <td className="px-8 py-6 text-right text-slate-500 font-medium">R$ {type?.baseValue.toFixed(2)}</td>
+                            <td className="px-8 py-6 text-right font-black text-slate-900">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                      {service.materials.map((sm, idx) => {
+                        const mat = allMaterials.find(m => m.id === sm.materialId);
+                        return (
+                          <tr key={idx} className="bg-slate-50/40">
+                            <td className="px-8 py-5">
+                              <p className="font-bold text-slate-700">{mat?.name}</p>
+                              <p className="text-[9px] text-slate-400 uppercase font-bold">Material</p>
+                            </td>
+                            <td className="px-8 py-5 text-center font-bold text-slate-400">{sm.quantity}</td>
+                            <td className="px-8 py-5 text-right text-slate-400">R$ {mat?.sellingPrice.toFixed(2)}</td>
+                            <td className="px-8 py-5 text-right font-bold text-slate-800">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-900 text-white">
+                      {service.discount > 0 && (
+                        <tr className="bg-rose-600/90">
+                          <td colSpan={3} className="px-8 py-4 text-right text-[10px] font-black uppercase tracking-widest">Desconto Aplicado</td>
+                          <td className="px-8 py-4 text-right font-black">- R$ {service.discount.toFixed(2)}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td colSpan={3} className="px-10 py-10 text-right text-xl font-black uppercase tracking-tighter">Valor Total do Recibo</td>
+                        <td className="px-10 py-10 text-right text-4xl font-black tracking-tighter text-indigo-400">
+                          R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="px-6 py-5 text-center font-bold text-slate-400">{sm.quantity}</td>
-                        <td className="px-6 py-5 text-right font-bold text-slate-800">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="bg-slate-900 text-white">
-                  {service.discount > 0 && (
-                    <tr className="bg-rose-600">
-                      <td colSpan={2} className="px-6 py-3 text-right text-[10px] font-black uppercase tracking-widest">Desconto Especial</td>
-                      <td className="px-6 py-3 text-right font-black">- R$ {service.discount.toFixed(2)}</td>
-                    </tr>
-                  )}
-                  <tr>
-                    <td colSpan={2} className="px-8 py-10 text-left text-xl font-black uppercase tracking-tighter">Valor Total Investido</td>
-                    <td className="px-8 py-10 text-right text-3xl font-black tracking-tighter text-indigo-400">R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                </tfoot>
-              </table>
+                    </tfoot>
+                  </table>
+               </div>
             </div>
 
-            <div className="mt-24 grid grid-cols-2 gap-20 px-10 pt-12 border-t-2 border-dashed border-slate-200">
+            <div className="mt-auto grid grid-cols-2 gap-24 px-12 pt-16 border-t-2 border-dashed border-slate-200">
               <div className="text-center">
-                <div className="border-b-2 border-slate-900 h-10 mb-3"></div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Renan Morais - RM Elétrica</p>
+                <div className="border-b-2 border-slate-900 h-12 flex items-end justify-center pb-1">
+                   <p className="text-[10px] font-bold italic opacity-30">Renan Morais</p>
+                </div>
+                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest mt-2">RM Elétrica & Soluções</p>
               </div>
               <div className="text-center">
-                <div className="border-b-2 border-slate-900 h-10 mb-3"></div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{customer?.name || 'Assinatura do Cliente'}</p>
+                <div className="border-b-2 border-slate-900 h-12"></div>
+                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest mt-2">{customer?.name || 'Cliente'}</p>
               </div>
-            </div>
-            
-            <div className="mt-32 text-center">
-               <p className="text-[8px] text-slate-300 font-black uppercase tracking-[0.8em]">Obrigado pela preferência • Documento Digital RM</p>
             </div>
           </div>
         </div>
       </div>
-      {isGenerating && <div className="fixed inset-0 bg-indigo-900/60 flex flex-col items-center justify-center z-[400] backdrop-blur-md text-white"><div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4"></div><p className="font-black uppercase tracking-widest">Processando PDF...</p></div>}
+      
+      {isGenerating && (
+        <div className="fixed inset-0 bg-indigo-900/80 z-[600] flex flex-col items-center justify-center backdrop-blur-md text-white">
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-6"></div>
+          <p className="text-xl font-black uppercase tracking-[0.3em]">Gerando PDF Profissional...</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -283,9 +310,18 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleRemove = (id: string) => {
+    if (confirm('Deseja realmente excluir permanentemente este registro de serviço?')) {
+      setServices(services.filter(s => s.id !== id));
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerId) return;
+    if (!formData.customerId) {
+        alert("Por favor, selecione um cliente.");
+        return;
+    }
 
     const record: ServiceRecord = {
       id: editingId || Date.now().toString(),
@@ -316,8 +352,8 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Atendimentos</h2>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Renan Morais - (14) 99179-8868</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Atendimentos</h2>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">Responsável: Renan Morais - (14) 99179-8868</p>
         </div>
         <button onClick={() => { if(isFormOpen) {setEditingId(null); setFormData(initialForm);} setIsFormOpen(!isFormOpen); }} className={`${isFormOpen ? 'bg-slate-200 text-slate-600' : 'bg-indigo-600 text-white shadow-xl'} px-8 py-3 rounded-2xl font-black text-xs transition-all`}>
           {isFormOpen ? 'CANCELAR' : '➕ NOVO REGISTRO'}
@@ -329,8 +365,8 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
           <div className="flex items-center gap-4">
              <div className="bg-slate-900 text-white p-4 rounded-2xl text-2xl shadow-xl">🛠️</div>
              <div>
-                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl">Configuração do Atendimento</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">RM Elétrica & Soluções</p>
+                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl">Gestão de Ordem de Serviço</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">RM Elétrica & Soluções</p>
              </div>
           </div>
 
@@ -338,16 +374,16 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             <div className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente Solicitante</label>
               <select required className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}>
-                <option value="">Selecione...</option>
+                <option value="">Selecione um cliente...</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Realização</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data da Realização</label>
               <input type="date" className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-bold" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado do Serviço</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status do Serviço</label>
               <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as ServiceStatus})}>
                 {Object.values(ServiceStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -356,7 +392,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             <div className="md:col-span-3 space-y-6">
               <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100">
                 <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="bg-indigo-600 text-white p-1.5 rounded-lg">⚡</span> Lançar Serviços (Qtd)
+                  <span className="bg-indigo-600 text-white p-1.5 rounded-lg">⚡</span> Adicionar Serviços (Selecione e informe a Qtd)
                 </h4>
                 <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
                   <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempService.id} onChange={e => setTempService({...tempService, id: e.target.value})}>
@@ -386,11 +422,11 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
 
               <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200">
                 <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="bg-slate-900 text-white p-1.5 rounded-lg">📦</span> Materiais de Reposição
+                  <span className="bg-slate-900 text-white p-1.5 rounded-lg">📦</span> Adicionar Materiais e Insumos
                 </h4>
                 <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
                   <select className="flex-1 p-4 rounded-2xl border-2 border-transparent focus:border-indigo-600 outline-none font-bold text-sm shadow-sm bg-white" value={tempMaterial.id} onChange={e => setTempMaterial({...tempMaterial, id: e.target.value})}>
-                    <option value="">Escolher do Inventário...</option>
+                    <option value="">Escolher do Estoque...</option>
                     {materials.map(m => <option key={m.id} value={m.id}>{m.name} (Saldo: {m.stock} UN)</option>)}
                   </select>
                   <div className="flex gap-2 w-full md:w-auto">
@@ -416,12 +452,12 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             </div>
 
             <div className="md:col-span-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Relato Técnico / Observações da Execução</label>
-              <textarea className="w-full p-6 rounded-[2rem] bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none h-32 font-medium transition-all" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva os detalhes do serviço realizado..." />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Detalhamento Técnico (Observações)</label>
+              <textarea className="w-full p-6 rounded-[2rem] bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none h-32 font-medium transition-all" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Descreva os serviços realizados e particularidades técnicas..." />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Forma de Pagamento</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Forma de Recebimento</label>
               <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})}>
                 {Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -429,7 +465,7 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
             
             {formData.paymentMethod === PaymentMethod.CREDIT_CARD && (
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelas</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelamento</label>
                 <select className="w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-500 outline-none font-black" value={formData.installments} onChange={e => setFormData({...formData, installments: Number(e.target.value)})}>
                   {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}x</option>)}
                 </select>
@@ -445,21 +481,21 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
           <div className="bg-slate-900 text-white p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden group">
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
               <div className="text-center md:text-left">
-                <p className="text-[10px] opacity-40 font-black uppercase tracking-[0.4em] mb-2">Total a ser faturado</p>
-                <h4 className="text-2xl font-bold flex items-center gap-3">
-                   <span className="text-4xl">💰</span> Recibo Total Final
+                <p className="text-[10px] opacity-40 font-black uppercase tracking-[0.4em] mb-2">Total Consolidado</p>
+                <h4 className="text-2xl font-bold flex items-center gap-3 italic">
+                   <span className="text-4xl">🧾</span> Recibo de Atendimento
                 </h4>
               </div>
               <div className="text-right">
                 <p className="text-6xl font-black tracking-tighter text-indigo-400">R$ {currentTotals.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                <p className="text-[10px] opacity-50 uppercase font-bold mt-2">Soma de Mão de Obra + Materiais</p>
+                <p className="text-[10px] opacity-50 uppercase font-bold mt-2">Mão de Obra + Materiais - Descontos</p>
               </div>
             </div>
-            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px] group-hover:bg-indigo-600/30 transition-all duration-700"></div>
+            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px]"></div>
           </div>
 
           <button type="submit" className="w-full bg-indigo-600 text-white p-8 rounded-[2rem] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all text-xl transform hover:-translate-y-1">
-            {editingId ? '💾 ATUALIZAR RECIBO DE SERVIÇO' : '✅ FINALIZAR E GRAVAR ATENDIMENTO'}
+            {editingId ? '💾 ATUALIZAR REGISTRO' : '✅ FINALIZAR E SALVAR ATENDIMENTO'}
           </button>
         </form>
       )}
@@ -473,17 +509,18 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(s.date).toLocaleDateString('pt-BR')}</span>
                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase shadow-sm ${s.status === ServiceStatus.COMPLETED ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>{s.status}</span>
               </div>
-              <h4 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors">{client?.name}</h4>
-              <p className="text-xs text-slate-400 font-bold mb-8 italic line-clamp-2 leading-relaxed">{s.description || "Nenhum relato técnico"}</p>
+              <h4 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">{client?.name || 'Cliente Particular'}</h4>
+              <p className="text-xs text-slate-400 font-bold mb-8 italic line-clamp-2 leading-relaxed min-h-[32px]">{s.description || "Sem relato técnico"}</p>
               
-              <div className="flex justify-between items-end">
+              <div className="flex justify-between items-end border-t border-slate-50 pt-6">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Valor do Recibo</p>
                   <p className="text-2xl font-black text-slate-900 tracking-tighter">R$ {s.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-4 rounded-2xl shadow-lg hover:bg-indigo-600 transition-all group-hover:scale-110"><span className="text-[10px] font-black uppercase tracking-widest">Recibo</span></button>
-                  <button onClick={() => handleEdit(s)} className="bg-slate-100 text-slate-400 p-4 rounded-2xl hover:bg-slate-200 transition-all">✎</button>
+                  <button onClick={() => setViewingId(s.id)} className="bg-slate-900 text-white p-4 rounded-2xl shadow-lg hover:bg-indigo-600 transition-all group-hover:scale-110" title="Ver Recibo"><span className="text-[10px] font-black uppercase">Recibo</span></button>
+                  <button onClick={() => handleEdit(s)} className="bg-slate-100 text-slate-400 p-4 rounded-2xl hover:bg-slate-200 transition-all" title="Editar">✎</button>
+                  <button onClick={() => handleRemove(s.id)} className="bg-rose-50 text-rose-500 p-4 rounded-2xl hover:bg-rose-500 hover:text-white transition-all" title="Excluir">🗑️</button>
                 </div>
               </div>
               <div className="absolute -right-6 -bottom-6 opacity-[0.03] text-9xl font-black pointer-events-none group-hover:opacity-[0.06] transition-opacity uppercase select-none">RM</div>
@@ -492,9 +529,8 @@ const ServiceManager: React.FC<Props> = ({ services, setServices, customers, mat
         })}
         {services.length === 0 && !isFormOpen && (
           <div className="col-span-full py-32 text-center bg-white rounded-[3.5rem] border-4 border-dashed border-slate-100 flex flex-col items-center">
-             <div className="text-7xl mb-6">🛠️</div>
-             <p className="font-black text-slate-300 uppercase tracking-[0.4em] text-sm">Pronto para o próximo atendimento?</p>
-             <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-widest">Nenhuma O.S. registrada no sistema.</p>
+             <div className="text-7xl mb-6 opacity-20">⚡</div>
+             <p className="font-black text-slate-300 uppercase tracking-[0.4em] text-sm">Nenhum atendimento realizado</p>
           </div>
         )}
       </div>
