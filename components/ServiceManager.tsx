@@ -27,7 +27,7 @@ const ServiceNoteModal: React.FC<{
   const handleDownloadPDF = async () => {
     // @ts-ignore
     if (typeof html2pdf === 'undefined') {
-      alert('Aguarde o carregamento do sistema de arquivos...');
+      alert('Sistema de PDF ainda carregando. Tente em 2 segundos.');
       return;
     }
 
@@ -35,7 +35,7 @@ const ServiceNoteModal: React.FC<{
     const element = document.getElementById('receipt-pdf-content');
     
     if (!element) {
-      alert('Erro ao localizar modelo do recibo.');
+      alert('Erro: Modelo do recibo não encontrado.');
       setIsGenerating(false);
       return;
     }
@@ -44,7 +44,7 @@ const ServiceNoteModal: React.FC<{
     const fileName = `RM_Recibo_${service.id.slice(-6)}_${customerName}.pdf`;
 
     const options = {
-      margin: [10, 10, 10, 10],
+      margin: [0, 0, 0, 0], // Margens controladas pelo CSS interno para precisão
       filename: fileName,
       image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { 
@@ -52,26 +52,31 @@ const ServiceNoteModal: React.FC<{
         useCORS: true, 
         letterRendering: true,
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        windowWidth: 800 // Estabiliza a largura para captura
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       // @ts-ignore
-      const worker = html2pdf().set(options).from(element).toPdf().output('blob');
-      const blob = await worker;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const pdfWorker = html2pdf().set(options).from(element).toPdf().output('blob');
+      const blob = await pdfWorker;
+      
+      // Cria um link de download forçado com tipo MIME correto para evitar abrir como texto no APK
+      const blobUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = fileName;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      
+      // Pequeno delay para garantir que o navegador processe o download antes de revogar a URL
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
     } catch (err) {
-      console.error('Erro PDF:', err);
-      alert('Erro ao gerar arquivo. Tente tirar um print da tela como alternativa.');
+      console.error('Erro na geração do PDF:', err);
+      alert('Erro ao processar arquivo. Tente novamente.');
     } finally {
       setIsGenerating(false);
     }
@@ -100,17 +105,15 @@ const ServiceNoteModal: React.FC<{
 *DESCRIÇÃO:*
 ${service.description || 'Atendimento técnico padrão.'}
 
-*ITENS E SERVIÇOS:*
-${serviceItemsStr || 'Mão de obra técnica'}
+*ITENS:*
+${serviceItemsStr}
 ${materialItemsStr}
 
-*VALOR TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+*INVESTIMENTO TOTAL:* R$ ${service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 *PAGAMENTO:* ${service.paymentMethod}
 --------------------------------
 *Técnico:* Renan Morais
-*WhatsApp:* (14) 99179-8868
-
-_Obrigado pela confiança!_`;
+*WhatsApp:* (14) 99179-8868`;
 
     window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -119,98 +122,100 @@ _Obrigado pela confiança!_`;
     <div className="fixed inset-0 bg-slate-900/98 z-[500] flex items-center justify-center p-0 md:p-4 backdrop-blur-md overflow-hidden">
       <div className="bg-white w-full max-w-5xl h-full md:h-[98vh] shadow-2xl flex flex-col overflow-hidden">
         
-        <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-slate-100/50 shrink-0">
-          <button onClick={onClose} className="px-5 py-2.5 text-slate-600 font-black text-[10px] uppercase hover:bg-slate-200 rounded-xl transition-all border border-slate-200">✕ Voltar</button>
-          <div className="flex gap-2">
-            <button onClick={handleShareWhatsApp} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
+        {/* BARRA DE BOTÕES INTERATIVA */}
+        <div className="p-4 border-b flex flex-wrap gap-2 justify-between items-center bg-slate-50 shrink-0">
+          <button onClick={onClose} className="px-6 py-3 text-slate-600 font-black text-xs uppercase hover:bg-slate-200 rounded-2xl transition-all border border-slate-200">✕ Voltar</button>
+          <div className="flex gap-3">
+            <button onClick={handleShareWhatsApp} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 uppercase tracking-widest">
                📱 WhatsApp
             </button>
-            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-2 uppercase tracking-widest">
+            <button onClick={handleDownloadPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-xs shadow-lg flex items-center gap-2 uppercase tracking-widest">
                📥 Baixar PDF
             </button>
           </div>
         </div>
 
+        {/* ÁREA DE VISUALIZAÇÃO DO RECIBO */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-slate-200/50 flex flex-col items-center">
-          <div id="receipt-pdf-content" className="bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-slate-900 flex flex-col font-sans relative p-[15mm] md:p-[20mm]">
+          <div id="receipt-pdf-content" className="bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-slate-900 flex flex-col font-sans relative p-[20mm]">
             
-            {/* CABEÇALHO - CONFORME IMAGEM 1 */}
+            {/* CABEÇALHO (BASEADO NA FOTO 1) */}
             <div className="flex justify-between items-start mb-2">
               <div>
                 <h1 className="text-[28pt] font-black text-slate-900 tracking-tighter uppercase leading-none">RM ELÉTRICA & SOLUÇÕES</h1>
-                <p className="text-[10pt] font-bold text-indigo-600 uppercase tracking-widest mt-1">EXCELÊNCIA EM INSTALAÇÕES E MANUTENÇÕES</p>
-                <div className="mt-6 text-[9pt] text-slate-500 font-bold space-y-1">
-                  <p className="uppercase tracking-widest">Especialista: Ricardo M.</p>
-                  <p>CONTATO: (00) 99999-9999</p>
+                <p className="text-[10pt] font-bold text-indigo-600 uppercase tracking-[0.2em] mt-1">EXCELÊNCIA EM INSTALAÇÕES E MANUTENÇÕES</p>
+                <div className="mt-8 text-[9pt] text-slate-500 font-bold space-y-1 uppercase tracking-wider">
+                  <p>ESPECIALISTA: RENAN MORAIS</p>
+                  <p>CONTATO: (14) 99179-8868</p>
                 </div>
               </div>
               <div className="text-right flex flex-col items-end">
-                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10pt] uppercase tracking-widest mb-4">NOTA DE SERVIÇO</div>
+                <div className="bg-[#1e293b] text-white px-6 py-3 rounded-xl font-black text-[10pt] uppercase tracking-[0.2em] mb-4">NOTA DE SERVIÇO</div>
                 <p className="text-[10pt] font-black text-slate-300"># {service.id.slice(-6).toUpperCase()}</p>
                 <p className="text-[10pt] font-black text-slate-400 mt-1">{new Date(service.date).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
 
-            {/* LINHA AZUL GROSSA */}
-            <div className="w-full h-2 bg-indigo-600 mb-12 mt-4"></div>
+            {/* LINHA AZUL IDENTIDADE */}
+            <div className="w-full h-[6px] bg-[#4f46e5] mb-12 mt-6"></div>
 
-            {/* SEÇÃO CLIENTE - BOX CINZA ARREDONDADO */}
-            <div className="mb-10">
-               <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 max-w-lg">
-                  <h4 className="text-[8pt] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4">CLIENTE</h4>
-                  <p className="text-[22pt] font-black text-slate-900 leading-none mb-4">{customer?.name}</p>
-                  <div className="text-[10pt] text-slate-500 font-medium space-y-1">
-                    <p>{customer?.street}</p>
-                    <p>{customer?.neighborhood}, {customer?.city} - {customer?.state}</p>
-                    <p>CEP: {customer?.cep}</p>
-                  </div>
-               </div>
-            </div>
-
-            {/* PAGAMENTO E STATUS */}
-            <div className="mb-10 grid grid-cols-2">
-              <div>
-                <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">PAGAMENTO</h4>
-                <p className="text-[18pt] font-black text-slate-900 uppercase">{service.paymentMethod}</p>
-                <div className="mt-4 inline-block bg-slate-900 text-white px-4 py-2 rounded-full text-[8pt] font-black uppercase tracking-widest shadow-sm">
-                   {service.status}
-                </div>
-              </div>
-            </div>
-
-            {/* RELATÓRIO DE EXECUÇÃO */}
+            {/* BOX CLIENTE (ARREDONDADO CINZA) */}
             <div className="mb-12">
-               <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">RELATÓRIO DE EXECUÇÃO</h4>
-               <div className="flex gap-4">
-                  <div className="w-4 h-auto bg-indigo-600 rounded-full shrink-0"></div>
-                  <div className="bg-slate-50 p-8 rounded-[2.5rem] flex-1">
-                    <p className="text-[11pt] text-slate-600 leading-relaxed italic italic">{service.description || "Infelizmente nenhuma observação detalhada foi fornecida."}</p>
+               <div className="p-10 bg-[#f8fafc] rounded-[2.5rem] border border-slate-100 max-w-2xl">
+                  <h4 className="text-[8pt] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">CLIENTE</h4>
+                  <p className="text-[24pt] font-black text-slate-900 leading-none mb-4">{customer?.name}</p>
+                  <div className="text-[10.5pt] text-slate-500 font-medium space-y-1">
+                    <p>{customer?.street || 'Endereço não informado'}</p>
+                    <p>{customer?.neighborhood ? `${customer.neighborhood}, ` : ''}{customer?.city || ''} - {customer?.state || ''}</p>
+                    <p>CEP: {customer?.cep || '00000-000'}</p>
                   </div>
                </div>
             </div>
 
-            {/* TABELA DE ITENS - CABEÇALHO ESCURO */}
+            {/* BOX PAGAMENTO */}
+            <div className="mb-12">
+                <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">PAGAMENTO</h4>
+                <p className="text-[18pt] font-black text-slate-900 uppercase">{service.paymentMethod}</p>
+                <div className="mt-4 inline-block bg-[#1e293b] text-white px-5 py-2 rounded-full text-[8pt] font-black uppercase tracking-[0.2em] shadow-sm">
+                   {service.status.toUpperCase()}
+                </div>
+            </div>
+
+            {/* RELATÓRIO DE EXECUÇÃO (COM BARRA AZUL LATERAL) */}
+            <div className="mb-14">
+               <h4 className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">RELATÓRIO DE EXECUÇÃO</h4>
+               <div className="flex gap-5 min-h-[120px]">
+                  <div className="w-5 h-auto bg-[#4f46e5] rounded-full shrink-0"></div>
+                  <div className="bg-[#f8fafc] p-10 rounded-[2.5rem] flex-1">
+                    <p className="text-[12pt] text-slate-600 leading-relaxed italic italic font-medium">
+                      {service.description || "Procedimentos técnicos realizados conforme solicitação, garantindo a integridade e conformidade das instalações elétricas."}
+                    </p>
+                  </div>
+               </div>
+            </div>
+
+            {/* TABELA DE VALORES (CABEÇALHO ESCURO) */}
             <div className="flex-1">
-               <div className="rounded-[1.5rem] overflow-hidden">
+               <div className="rounded-[1.5rem] overflow-hidden border border-slate-100">
                   <table className="w-full text-[10pt]">
                     <thead className="bg-[#0f172a] text-white uppercase text-[8pt] font-black">
                       <tr>
-                        <th className="px-8 py-5 text-left tracking-widest">DESCRIÇÃO DOS SERVIÇOS E ITENS</th>
-                        <th className="px-8 py-5 text-center tracking-widest">QTD</th>
-                        <th className="px-8 py-5 text-right tracking-widest">SUBTOTAL</th>
+                        <th className="px-10 py-6 text-left tracking-[0.2em]">DESCRIÇÃO DOS SERVIÇOS E ITENS</th>
+                        <th className="px-10 py-6 text-center tracking-[0.2em]">QTD</th>
+                        <th className="px-10 py-6 text-right tracking-[0.2em]">SUBTOTAL</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 border-b border-slate-100">
+                    <tbody className="divide-y divide-slate-100">
                       {service.serviceItems.map((si, idx) => {
                         const type = allServiceTypes.find(t => t.id === si.serviceTypeId);
                         return (
                           <tr key={idx}>
-                            <td className="px-8 py-6">
+                            <td className="px-10 py-7">
                               <p className="font-black text-slate-900 text-[11pt]">{type?.name}</p>
-                              <p className="text-[7pt] text-slate-400 font-bold uppercase tracking-widest mt-1">INSTALAÇÃO E REPAROS ESPECIALIZADOS</p>
+                              <p className="text-[7.5pt] text-slate-400 font-bold uppercase tracking-widest mt-1">INSTALAÇÃO E REPAROS ESPECIALIZADOS</p>
                             </td>
-                            <td className="px-8 py-6 text-center font-bold text-slate-600">{si.quantity}</td>
-                            <td className="px-8 py-6 text-right font-black text-slate-900 text-[11pt]">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
+                            <td className="px-10 py-7 text-center font-bold text-slate-600">{si.quantity}</td>
+                            <td className="px-10 py-7 text-right font-black text-slate-900 text-[11pt]">R$ {(si.quantity * (type?.baseValue || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
@@ -218,25 +223,25 @@ _Obrigado pela confiança!_`;
                         const mat = allMaterials.find(m => m.id === sm.materialId);
                         return (
                           <tr key={idx}>
-                            <td className="px-8 py-6 text-slate-600 font-medium">
+                            <td className="px-10 py-7 text-slate-600 font-bold">
                               {mat?.name}
                             </td>
-                            <td className="px-8 py-6 text-center font-bold text-slate-400">{sm.quantity}</td>
-                            <td className="px-8 py-6 text-right font-bold text-slate-600">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
+                            <td className="px-10 py-7 text-center font-bold text-slate-400">{sm.quantity}</td>
+                            <td className="px-10 py-7 text-right font-bold text-slate-600">R$ {(sm.quantity * (mat?.sellingPrice || 0)).toFixed(2)}</td>
                           </tr>
                         );
                       })}
                       {service.discount > 0 && (
-                        <tr className="bg-rose-50/50">
-                          <td colSpan={2} className="px-8 py-4 text-right text-[8pt] font-black text-rose-500 uppercase tracking-widest">BONIFICAÇÃO</td>
-                          <td className="px-8 py-4 text-right font-black text-rose-600 text-[11pt]">- R$ {service.discount.toFixed(2)}</td>
+                        <tr className="bg-rose-50/40">
+                          <td colSpan={2} className="px-10 py-5 text-right text-[8pt] font-black text-rose-500 uppercase tracking-[0.3em]">BONIFICAÇÃO</td>
+                          <td className="px-10 py-5 text-right font-black text-rose-600 text-[11pt]">- R$ {service.discount.toFixed(2)}</td>
                         </tr>
                       )}
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#0f172a] text-white">
-                        <td colSpan={2} className="px-10 py-10 text-left font-black text-[18pt] uppercase tracking-tighter">INVESTIMENTO TOTAL</td>
-                        <td className="px-10 py-10 text-right text-[26pt] font-black tracking-tighter">
+                        <td colSpan={2} className="px-12 py-12 text-left font-black text-[20pt] uppercase tracking-tighter">INVESTIMENTO TOTAL</td>
+                        <td className="px-12 py-12 text-right text-[28pt] font-black tracking-tighter">
                           R$ {service.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -245,32 +250,34 @@ _Obrigado pela confiança!_`;
                </div>
             </div>
 
-            {/* PÁGINA 2 - ASSINATURAS (CONFORME IMAGEM 2) */}
-            <div className="mt-20 pt-20 border-t border-dashed border-slate-200">
+            {/* PÁGINA 2 / ASSINATURAS (FOTO 2) */}
+            <div className="mt-24 pt-24 border-t-2 border-dashed border-slate-200">
                <div className="grid grid-cols-1 gap-24 px-10">
                   <div className="text-center">
-                    <div className="w-full h-0.5 bg-slate-900 mb-4"></div>
-                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-widest mb-1">RESPONSÁVEL TÉCNICO</p>
-                    <p className="text-[12pt] font-black text-slate-900 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
+                    <div className="w-full h-[2px] bg-slate-900 mb-4"></div>
+                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">RESPONSÁVEL TÉCNICO</p>
+                    <p className="text-[13pt] font-black text-slate-900 uppercase">RM ELÉTRICA & SOLUÇÕES</p>
                   </div>
                   <div className="text-center">
-                    <div className="w-full h-0.5 bg-slate-900 mb-4"></div>
-                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-widest mb-1">ASSINATURA DO CLIENTE</p>
-                    <p className="text-[12pt] font-black text-slate-900 uppercase">{customer?.name || 'A'}</p>
+                    <div className="w-full h-[2px] bg-slate-900 mb-4"></div>
+                    <p className="text-[8pt] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">ASSINATURA DO CLIENTE</p>
+                    <p className="text-[13pt] font-black text-slate-900 uppercase">{customer?.name || '___________________________'}</p>
                   </div>
                </div>
                
-               <div className="mt-32 text-center text-[7pt] font-black text-slate-300 uppercase tracking-[0.5em] pb-10">
+               <div className="mt-32 text-center text-[7.5pt] font-black text-slate-300 uppercase tracking-[0.6em] pb-10">
                   GERADO DIGITALMENTE • OBRIGADO PELA CONFIANÇA
                </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* OVERLAY DE CARREGAMENTO PROFISSIONAL */}
       {isGenerating && (
-        <div className="fixed inset-0 bg-indigo-900/90 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-md">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-6"></div>
-          <p className="font-black uppercase tracking-[0.4em] text-sm animate-pulse">GERANDO PDF PROFISSIONAL...</p>
+        <div className="fixed inset-0 bg-indigo-950/95 z-[600] flex flex-col items-center justify-center text-white backdrop-blur-xl">
+          <div className="w-20 h-20 border-[6px] border-white border-t-transparent rounded-full animate-spin mb-8 shadow-2xl"></div>
+          <p className="font-black uppercase tracking-[0.5em] text-sm animate-pulse">PROCESSANDO DOCUMENTO PDF...</p>
         </div>
       )}
     </div>
